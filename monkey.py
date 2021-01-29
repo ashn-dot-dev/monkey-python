@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 
+import enum
+
 
 class SourceLocation:
     def __init__(self, filename, line):
         self.filename = filename
         self.line = line
 
-    def __str__(self):
-        return f"{self.filename}:{self.line}"
+    def __repr__(self):
+        return f"{self.filename}, line {self.line}"
 
 
 class Token:
@@ -186,6 +188,528 @@ class Lexer:
         return self.source[start : self.position]
 
 
+class ParseError(Exception):
+    def __init__(self, tok, why):
+        assert isinstance(tok, Token)
+        self.tok = tok
+        self.why = why
+
+    def __str__(self):
+        return f"[{self.tok.source_location}] {self.why}"
+
+
+class Node:
+    def __init__(self):
+        raise NotImplementedError()
+
+    def token_literal(self):
+        """
+        Returns the literal value of the token this node is associated with.
+        """
+        raise NotImplementedError()
+
+    def __str__(self):
+        """
+        The Node.String() method from the book.
+        Used to print the AST nodes for debugging (pg 64).
+        """
+        raise NotImplementedError()
+
+
+class Statement(Node):
+    def __init__(self):
+        raise NotImplementedError()
+
+
+class Expression(Node):
+    def __init__(self):
+        raise NotImplementedError()
+
+
+class Program(Node):
+    def __init__(self):
+        self.statements = list()
+
+    def token_literal(self):
+        if len(self.statements) > 0:
+            return self.statements[0].token_literal()
+        return ""
+
+    def __str__(self):
+        return str().join(map(str, self.statements))
+
+
+class LetStatement(Statement):
+    def __init__(self, token, name, value):
+        self.token = token  # The 'let' token.
+        self.name = name  # Identifier being bound to.
+        self.value = value  # Expression being bound.
+
+    def token_literal(self):
+        return self.token.literal
+
+    def __str__(self):
+        return f"{self.token_literal()} {self.name} = {self.value};"
+
+
+class ReturnStatement(Statement):
+    def __init__(self, token, return_value):
+        self.token = token  # The 'return' token.
+        self.return_value = return_value
+
+    def token_literal(self):
+        return self.token.literal
+
+    def __str__(self):
+        return f"{self.token_literal()} {self.return_value};"
+
+
+class ExpressionStatement(Statement):
+    def __init__(self, token, expression):
+        assert isinstance(expression, Expression)
+        self.token = token
+        self.expression = expression
+
+    def token_literal(self):
+        return self.token.literal
+
+    def __str__(self):
+        return str(self.expression)
+
+
+class Identifier(Expression):
+    def __init__(self, token, value):
+        assert isinstance(token, Token)
+        assert isinstance(value, str)
+        self.token = token
+        self.value = value
+
+    def token_literal(self):
+        return self.token.literal
+
+    def __str__(self):
+        return str(self.value)
+
+
+class IntegerLiteral(Expression):
+    def __init__(self, token, value):
+        assert isinstance(token, Token)
+        assert isinstance(value, int)
+        self.token = token
+        self.value = value
+
+    def token_literal(self):
+        return self.token.literal
+
+    def __str__(self):
+        return str(self.value)
+
+
+class BooleanLiteral(Expression):
+    def __init__(self, token, value):
+        assert isinstance(token, Token)
+        assert isinstance(value, bool)
+        self.token = token
+        self.value = value
+
+    def token_literal(self):
+        return self.token.literal
+
+    def __str__(self):
+        return self.token.literal
+
+
+class PrefixExpression(Expression):
+    def __init__(self, token, operator, right):
+        assert isinstance(token, Token)
+        assert isinstance(operator, str)
+        assert isinstance(right, Expression)
+        self.token = token  # The prefix token, e.g. !
+        self.operator = operator
+        self.right = right
+
+    def token_literal(self):
+        return self.token.literal
+
+    def __str__(self):
+        return f"({self.operator}{self.right})"
+
+
+class InfixExpression(Expression):
+    def __init__(self, token, left, operator, right):
+        assert isinstance(token, Token)
+        assert isinstance(left, Expression)
+        assert isinstance(operator, str)
+        assert isinstance(right, Expression)
+        self.token = token  # The infix token, e.g. +
+        self.left = left
+        self.operator = operator
+        self.right = right
+
+    def token_literal(self):
+        return self.token.literal
+
+    def __str__(self):
+        return f"({self.left} {self.operator} {self.right})"
+
+
+class IfExpression(Expression):
+    def __init__(self, token, condition, consequence, alternative):
+        assert isinstance(token, Token)
+        assert isinstance(condition, Expression)
+        assert isinstance(consequence, BlockStatement)
+        assert isinstance(alternative, (BlockStatement, type(None)))
+        self.token = token  # The "if" token
+        self.condition = condition
+        self.consequence = consequence
+        self.alternative = alternative
+
+    def token_literal(self):
+        return self.token.literal
+
+    def __str__(self):
+        consequencestr = f"if {self.condition} {self.consequence}"
+        alternativestr = f"else {self.alternative}" if self.alternative else ""
+        return f"{consequencestr} {alternativestr}"
+
+
+class BlockStatement(Statement):
+    def __init__(self, token, statements):
+        assert isinstance(token, Token)
+        assert isinstance(statements, list)
+        self.token = token  # The "{" token
+        self.statements = statements  # List[statements]
+
+    def token_literal(self):
+        return self.token.literal
+
+    def __str__(self):
+        s = "".join(map(str, self.statements))
+        return f"{{ {s} }}"
+
+
+class FunctionLiteral(Expression):
+    def __init__(self, token, parameters, body):
+        assert isinstance(token, Token)
+        assert isinstance(parameters, list)
+        assert isinstance(body, BlockStatement)
+        self.token = token  # the "fn" token
+        self.parameters = parameters
+        self.body = body
+
+    def token_literal(self):
+        return self.token.literal
+
+    def __str__(self):
+        params = ", ".join(map(str, self.parameters))
+        return f"{self.token}({params}) {self.body} }}"
+
+
+class CallExpression(Expression):
+    def __init__(self, token, function, arguments):
+        assert isinstance(token, Token)
+        assert isinstance(function, Expression)
+        assert isinstance(arguments, list)
+        self.token = token  # the "(" token.
+        self.function = function
+        self.arguments = arguments
+
+    def token_literal(self):
+        self.token.literal
+
+    def __str__(self):
+        args = ", ".join(map(str, self.arguments))
+        return f"{self.function}({args})"
+
+
+class Parser:
+    # > A Pratt parser's main idea is the association of parsing functions with
+    # > token types. Whenever this token type is encountered, the parsing
+    # > functions are called to parse the appropriate expression and return an
+    # > AST node that represents it. Each token type can have up to two parsing
+    # > functions associated with it, depending on whether the token is found in
+    # > a prefix or an infix position.
+    # >     - Writing and Interpreter in Go, ver 1.7, pg. 67.
+    #
+    # PrefixParseFunction : func() -> Expression
+    # InfixParseFunction  : func(Expression) -> Expression
+    #
+    # Both the prefix and infix parse functions return an Expression.
+    # The prefix parse function takes no argument and parses the expression on
+    # the right hand side of a prefix operator being parsed.
+    # The infix parse functions takes and argument representing the left hand
+    # side of and infix operator being parsed.
+    class Precedence(enum.IntEnum):
+        # fmt: off
+        LOWEST      = enum.auto()
+        EQUALS      = enum.auto() # ==
+        LESSGREATER = enum.auto() # > or <
+        SUM         = enum.auto() # +
+        PRODUCT     = enum.auto() # *
+        PREFIX      = enum.auto() # -X or !X
+        CALL        = enum.auto() # myFunction(X)
+        # fmt: on
+
+    # Token Kind -> Precedence
+    PRECEDENCES = {
+        # fmt: off
+        Token.EQ:       Precedence.EQUALS,
+        Token.NOT_EQ:   Precedence.EQUALS,
+        Token.LT:       Precedence.LESSGREATER,
+        Token.GT:       Precedence.LESSGREATER,
+        Token.PLUS:     Precedence.SUM,
+        Token.MINUS:    Precedence.SUM,
+        Token.SLASH:    Precedence.PRODUCT,
+        Token.ASTERISK: Precedence.PRODUCT,
+        Token.LPAREN:   Precedence.CALL,
+        # fmt: on
+    }
+
+    def __init__(self, lexer):
+        self.lexer = lexer
+        self.cur_token = None
+        self.peek_token = None
+
+        # Token Kind -> Prefix Parse Function
+        self.prefix_parse_fns = dict()
+        self._register_prefix(Token.IDENT, Parser.parse_identifier)
+        self._register_prefix(Token.INT, Parser.parse_integer_literal)
+        self._register_prefix(Token.TRUE, Parser.parse_boolean_literal)
+        self._register_prefix(Token.FALSE, Parser.parse_boolean_literal)
+        self._register_prefix(Token.BANG, Parser.parse_prefix_expression)
+        self._register_prefix(Token.MINUS, Parser.parse_prefix_expression)
+        self._register_prefix(Token.LPAREN, Parser.parse_grouped_expression)
+        self._register_prefix(Token.IF, Parser.parse_if_expression)
+        self._register_prefix(Token.FUNCTION, Parser.parse_function_literal)
+        # Token Kind -> Infix Parse Function
+        self.infix_parse_fns = dict()
+        self._register_infix(Token.PLUS, Parser.parse_infix_expression)
+        self._register_infix(Token.MINUS, Parser.parse_infix_expression)
+        self._register_infix(Token.SLASH, Parser.parse_infix_expression)
+        self._register_infix(Token.ASTERISK, Parser.parse_infix_expression)
+        self._register_infix(Token.EQ, Parser.parse_infix_expression)
+        self._register_infix(Token.NOT_EQ, Parser.parse_infix_expression)
+        self._register_infix(Token.LT, Parser.parse_infix_expression)
+        self._register_infix(Token.GT, Parser.parse_infix_expression)
+        self._register_infix(Token.LPAREN, Parser.parse_call_expression)
+
+        # Read two tokens, so curToken and peekToken are both set.
+        self._next_token()
+        self._next_token()
+
+    def parse_program(self):
+        program = Program()
+        while not self._cur_token_is(Token.EOF):
+            stmt = self.parse_statement()
+            program.statements.append(stmt)
+            self._next_token()
+        return program
+
+    def parse_statement(self):
+        if self._cur_token_is(Token.LET):
+            return self.parse_let_statement()
+        if self._cur_token_is(Token.RETURN):
+            return self.parse_return_statement()
+        return self.parse_expression_statement()
+
+    def parse_let_statement(self):
+        token = self.cur_token
+        self._expect_peek(Token.IDENT)
+        name = Identifier(self.cur_token, self.cur_token.literal)
+        self._expect_peek(Token.ASSIGN)
+        self._next_token()
+        value = self.parse_expression(Parser.Precedence.LOWEST)
+        if self._peek_token_is(Token.SEMICOLON):
+            self._next_token()
+        return LetStatement(token, name, value)
+
+    def parse_return_statement(self):
+        token = self.cur_token
+        self._next_token()
+        return_value = self.parse_expression(Parser.Precedence.LOWEST)
+        if self._peek_token_is(Token.SEMICOLON):
+            self._next_token()
+        return ReturnStatement(token, return_value)
+
+    def parse_expression_statement(self):
+        token = self.cur_token
+        expression = self.parse_expression(Parser.Precedence.LOWEST)
+        if self._peek_token_is(Token.SEMICOLON):
+            # Expression statements have optional semicolons which makes it
+            # easier to type something like:
+            # >> 5 + 5
+            # into the REPL later on.
+            self._next_token()
+        return ExpressionStatement(token, expression)
+
+    def parse_expression(self, precedence):
+        assert isinstance(precedence, Parser.Precedence)
+        prefix = self.prefix_parse_fns.get(self.cur_token.kind)
+        if prefix == None:
+            tok = self.cur_token
+            msg = f"Expected expression, found {tok}"
+            raise ParseError(tok, msg)
+        left_exp = prefix(self)
+        while precedence < self._peek_precedence():
+            infix = self.infix_parse_fns.get(self.peek_token.kind, None)
+            if infix == None:
+                return left_exp
+            self._next_token()
+            left_exp = infix(self, left_exp)
+        return left_exp
+
+    def parse_identifier(self):
+        assert self.cur_token.kind == Token.IDENT
+        return Identifier(self.cur_token, self.cur_token.literal)
+
+    def parse_integer_literal(self):
+        assert self.cur_token.kind == Token.INT
+        return IntegerLiteral(self.cur_token, int(self.cur_token.literal))
+
+    def parse_boolean_literal(self):
+        assert (
+            self.cur_token.kind == Token.TRUE
+            or self.cur_token.kind == Token.FALSE
+        )
+        value = True if self.cur_token.kind == Token.TRUE else False
+        return BooleanLiteral(self.cur_token, value)
+
+    def parse_prefix_expression(self):
+        token = self.cur_token
+        operator = self.cur_token.literal
+
+        # Consume the prefix operator.
+        self._next_token()
+
+        right = self.parse_expression(Parser.Precedence.PREFIX)
+        return PrefixExpression(token, operator, right)
+
+    def parse_infix_expression(self, left):
+        assert isinstance(left, Expression)
+        token = self.cur_token
+        operator = self.cur_token.literal
+
+        precedence = self._cur_precedence()
+        self._next_token()
+        right = self.parse_expression(precedence)
+
+        return InfixExpression(token, left, operator, right)
+
+    def parse_grouped_expression(self):
+        self._next_token()
+        exp = self.parse_expression(Parser.Precedence.LOWEST)
+        self._expect_peek(Token.RPAREN)
+        return exp
+
+    def parse_if_expression(self):
+        token = self.cur_token
+        self._expect_peek(Token.LPAREN)
+        self._next_token()  # Consume (
+        condition = self.parse_expression(Parser.Precedence.LOWEST)
+        self._expect_peek(Token.RPAREN)
+        self._expect_peek(Token.LBRACE)
+        consequence = self.parse_block_statement()
+        alternative = None
+        if self._peek_token_is(Token.ELSE):
+            self._next_token()
+            self._expect_peek(Token.LBRACE)
+            alternative = self.parse_block_statement()
+        return IfExpression(token, condition, consequence, alternative)
+
+    def parse_block_statement(self):
+        token = self.cur_token
+        statements = list()
+        self._next_token()  # Consume {
+        while not self._cur_token_is(Token.RBRACE):
+            if self._cur_token_is(Token.EOF):
+                tok = self.cur_token
+                raise ParseError(tok, "Unexpected {tok} in block statment")
+            statements.append(self.parse_statement())
+            self._next_token()
+        return BlockStatement(token, statements)
+
+    def parse_function_literal(self):
+        token = self.cur_token
+        self._expect_peek(Token.LPAREN)
+        parameters = self.parse_function_parameters()
+        self._expect_peek(Token.LBRACE)
+        body = self.parse_block_statement()
+        return FunctionLiteral(token, parameters, body)
+
+    def parse_function_parameters(self):
+        identifiers = list()
+        if self._peek_token_is(Token.RPAREN):
+            self._next_token()
+            return identifiers
+
+        self._next_token()
+        ident = Identifier(self.cur_token, self.cur_token.literal)
+        identifiers.append(ident)
+
+        while self._peek_token_is(Token.COMMA):
+            self._next_token()
+            self._next_token()
+            ident = Identifier(self.cur_token, self.cur_token.literal)
+            identifiers.append(ident)
+
+        self._expect_peek(Token.RPAREN)
+        return identifiers
+
+    def parse_call_expression(self, function):
+        token = self.cur_token
+        arguments = self.parse_call_arguments(function)
+        return CallExpression(token, function, arguments)
+
+    def parse_call_arguments(self, function):
+        args = []
+        if self._peek_token_is(Token.RPAREN):
+            self._next_token()
+            return args
+
+        self._next_token()
+        args.append(self.parse_expression(Parser.Precedence.LOWEST))
+        while self._peek_token_is(Token.COMMA):
+            self._next_token()
+            self._next_token()
+            args.append(self.parse_expression(Parser.Precedence.LOWEST))
+
+        self._expect_peek(Token.RPAREN)
+        return args
+
+    def _register_prefix(self, token_kind, prefix_parse_fn):
+        self.prefix_parse_fns[token_kind] = prefix_parse_fn
+
+    def _register_infix(self, token_kind, infix_parse_fn):
+        self.infix_parse_fns[token_kind] = infix_parse_fn
+
+    def _next_token(self):
+        self.cur_token = self.peek_token
+        self.peek_token = self.lexer.next_token()
+
+    def _cur_token_is(self, kind):
+        return self.cur_token.kind == kind
+
+    def _peek_token_is(self, kind):
+        return self.peek_token.kind == kind
+
+    def _expect_peek(self, kind):
+        if not self._peek_token_is(kind):
+            tok = self.peek_token
+            msg = f"Expected token {kind}, found {tok}"
+            raise ParseError(tok, msg)
+        self._next_token()
+
+    def _cur_precedence(self):
+        return Parser.PRECEDENCES.get(
+            self.cur_token.kind, Parser.Precedence.LOWEST
+        )
+
+    def _peek_precedence(self):
+        return Parser.PRECEDENCES.get(
+            self.peek_token.kind, Parser.Precedence.LOWEST
+        )
+
+
 class REPL:
     def __init__(self):
         pass
@@ -194,16 +718,22 @@ class REPL:
         while True:
             try:
                 self._step()
+            except ParseError as e:
+                print(e)
             except (EOFError, KeyboardInterrupt):
+                print("", end="\n")
                 return
 
     def _step(self):
         line = input(">> ")
         l = Lexer(line, "<repl>")
-        tok = l.next_token()
-        while tok.kind != Token.EOF:
-            print(tok)
-            tok = l.next_token()
+        p = Parser(l)
+        try:
+            program = p.parse_program()
+        except ParseError as e:
+            print(e)
+            return
+        print(program)
 
 
 if __name__ == "__main__":
