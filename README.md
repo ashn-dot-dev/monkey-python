@@ -1,4 +1,4 @@
-# Monkey Programming Language Interpreter in Python 3
+# The Monkey Programming Language
 Python 3 implementation of the interpreter for the Monkey language from Thorsten
 Ball's [Writing an Interpreter in Go](https://interpreterbook.com/).
 
