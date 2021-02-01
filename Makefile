@@ -1,7 +1,7 @@
 .POSIX:
-.PHONY: all test lint clean format
+.PHONY: all test lint format clean
 
-all: test
+all: test lint format
 
 test:
 	python3 test_monkey.py
@@ -9,8 +9,9 @@ test:
 lint:
 	python3 -m mypy *.py
 
-clean:
-	rm -rf __pycache__/
-
 format:
 	black *.py --line-length 80
+
+clean:
+	rm -rf __pycache__/
+	rm -rf .mypy_cache/

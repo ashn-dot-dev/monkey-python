@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 
 import enum
-from typing import Callable, Dict, List, Union
+from typing import Callable, Dict, List, Optional
 
 
 class SourceLocation:
-    def __init__(self, filename: str, line: int) -> None:
-        self.filename = filename
-        self.line = line
+    def __init__(self, filename: Optional[str], line: int) -> None:
+        self.filename: Optional[str] = filename
+        self.line: int = line
 
     def __repr__(self) -> str:
+        if self.filename == None:
+            return f"line {self.line}"
         return f"{self.filename}, line {self.line}"
 
 
@@ -49,19 +51,6 @@ class TokenKind(enum.Enum):
 
 
 class Token:
-    @staticmethod
-    def lookup_ident(ident: str) -> TokenKind:
-        keywords = {
-            "fn": TokenKind.FUNCTION,
-            "let": TokenKind.LET,
-            "true": TokenKind.TRUE,
-            "false": TokenKind.FALSE,
-            "if": TokenKind.IF,
-            "else": TokenKind.ELSE,
-            "return": TokenKind.RETURN,
-        }
-        return keywords.get(ident, TokenKind.IDENT)
-
     def __init__(
         self, kind: TokenKind, literal: str, source_location: SourceLocation
     ) -> None:
@@ -76,17 +65,30 @@ class Token:
             return f"{self.kind}({self.literal})"
         return f"{self.kind}"
 
+    @staticmethod
+    def lookup_ident(ident: str) -> TokenKind:
+        keywords = {
+            "fn": TokenKind.FUNCTION,
+            "let": TokenKind.LET,
+            "true": TokenKind.TRUE,
+            "false": TokenKind.FALSE,
+            "if": TokenKind.IF,
+            "else": TokenKind.ELSE,
+            "return": TokenKind.RETURN,
+        }
+        return keywords.get(ident, TokenKind.IDENT)
+
 
 class Lexer:
     EOF_LITERAL = ""
 
-    def __init__(self, source: str, filename: str = "<nofile>") -> None:
+    def __init__(self, source: str, filename: Optional[str] = None) -> None:
         self.source: str = source
-        self.source_filename: str = filename
-        self.source_line: int = 0
+        self.source_filename: Optional[str] = filename
+        self.source_line: int = 1
         self.position: int = 0
         self.read_position: int = 0
-        self.ch: Union[str, None] = None
+        self.ch: Optional[str] = None
         self._read_char()
 
     def next_token(self) -> Token:
@@ -203,17 +205,18 @@ class ParseError(Exception):
 
 class Node:
     def __init__(self) -> None:
+        self.token: Token
         raise NotImplementedError()
 
     def token_literal(self) -> str:
         """
         Returns the literal value of the token this node is associated with.
         """
-        raise NotImplementedError()
+        return self.token.literal
 
     def __str__(self) -> str:
         """
-        The Node.String() method from the book.
+        The Node.String() method from the "Writing and Interpreter in Go".
         Used to print the AST nodes for debugging (pg 64).
         """
         raise NotImplementedError()
@@ -247,9 +250,6 @@ class Identifier(Expression):
         self.token: Token = token
         self.value: str = value
 
-    def token_literal(self) -> str:
-        return self.token.literal
-
     def __str__(self):
         return str(self.value)
 
@@ -262,9 +262,6 @@ class LetStatement(Statement):
         self.name: Identifier = name  # Identifier being bound to.
         self.value: Expression = value  # Expression being bound.
 
-    def token_literal(self) -> str:
-        return self.token.literal
-
     def __str__(self):
         return f"{self.token_literal()} {self.name} = {self.value};"
 
@@ -274,20 +271,24 @@ class ReturnStatement(Statement):
         self.token: Token = token  # The "return" token.
         self.return_value: Expression = return_value
 
-    def token_literal(self) -> str:
-        return self.token.literal
-
     def __str__(self):
         return f"{self.token_literal()} {self.return_value};"
+
+
+class BlockStatement(Statement):
+    def __init__(self, token: Token, statements: List[Statement]) -> None:
+        self.token: Token = token  # The "{" token
+        self.statements: List[Statement] = statements
+
+    def __str__(self) -> str:
+        s = "".join(map(str, self.statements))
+        return f"{{ {s} }}"
 
 
 class ExpressionStatement(Statement):
     def __init__(self, token: Token, expression: Expression) -> None:
         self.token: Token = token
         self.expression: Expression = expression
-
-    def token_literal(self) -> str:
-        return self.token.literal
 
     def __str__(self):
         return str(self.expression)
@@ -298,9 +299,6 @@ class IntegerLiteral(Expression):
         self.token: Token = token
         self.value: int = value
 
-    def token_literal(self) -> str:
-        return self.token.literal
-
     def __str__(self):
         return str(self.value)
 
@@ -310,11 +308,21 @@ class BooleanLiteral(Expression):
         self.token: Token = token
         self.value: bool = value
 
-    def token_literal(self) -> str:
-        return self.token.literal
-
     def __str__(self):
         return self.token.literal
+
+
+class FunctionLiteral(Expression):
+    def __init__(
+        self, token: Token, parameters: List[Identifier], body: BlockStatement,
+    ) -> None:
+        self.token: Token = token  # the "fn" token
+        self.parameters: List[Identifier] = parameters
+        self.body: BlockStatement = body
+
+    def __str__(self) -> str:
+        params = ", ".join(map(str, self.parameters))
+        return f"{self.token}({params}) {self.body} }}"
 
 
 class PrefixExpression(Expression):
@@ -322,9 +330,6 @@ class PrefixExpression(Expression):
         self.token: Token = token  # The prefix token, e.g. !
         self.operator: str = operator
         self.right: Expression = right
-
-    def token_literal(self) -> str:
-        return self.token.literal
 
     def __str__(self):
         return f"({self.operator}{self.right})"
@@ -339,62 +344,8 @@ class InfixExpression(Expression):
         self.operator: str = operator
         self.right: Expression = right
 
-    def token_literal(self) -> str:
-        return self.token.literal
-
     def __str__(self):
         return f"({self.left} {self.operator} {self.right})"
-
-
-class BlockStatement(Statement):
-    def __init__(self, token: Token, statements: List[Statement]) -> None:
-        self.token: Token = token  # The "{" token
-        self.statements: List[Statement] = statements
-
-    def token_literal(self) -> str:
-        return self.token.literal
-
-    def __str__(self) -> str:
-        s = "".join(map(str, self.statements))
-        return f"{{ {s} }}"
-
-
-class IfExpression(Expression):
-    def __init__(
-        self,
-        token: Token,
-        condition: Expression,
-        consequence: BlockStatement,
-        alternative: Union[BlockStatement, None],
-    ) -> None:
-        self.token: Token = token  # The "if" token
-        self.condition: Expression = condition
-        self.consequence: BlockStatement = consequence
-        self.alternative: BlockStatement = alternative
-
-    def token_literal(self) -> str:
-        return self.token.literal
-
-    def __str__(self) -> str:
-        consequencestr = f"if {self.condition} {self.consequence}"
-        alternativestr = f"else {self.alternative}" if self.alternative else ""
-        return f"{consequencestr} {alternativestr}"
-
-
-class FunctionLiteral(Expression):
-    def __init__(
-        self, token: Token, parameters: List[Identifier], body: BlockStatement,
-    ) -> None:
-        self.token: Token = token  # the "fn" token
-        self.parameters: List[Identifier] = parameters
-        self.body: BlockStatement = body
-
-    def token_literal(self) -> str:
-        return self.token.literal
-
-    def __str__(self) -> str:
-        params = ", ".join(map(str, self.parameters))
-        return f"{self.token}({params}) {self.body} }}"
 
 
 class CallExpression(Expression):
@@ -405,12 +356,28 @@ class CallExpression(Expression):
         self.function: Expression = function
         self.arguments: List[Expression] = arguments
 
-    def token_literal(self) -> str:
-        return self.token.literal
-
     def __str__(self) -> str:
         args = ", ".join(map(str, self.arguments))
         return f"{self.function}({args})"
+
+
+class IfExpression(Expression):
+    def __init__(
+        self,
+        token: Token,
+        condition: Expression,
+        consequence: BlockStatement,
+        alternative: Optional[BlockStatement],
+    ) -> None:
+        self.token: Token = token  # The "if" token
+        self.condition: Expression = condition
+        self.consequence: BlockStatement = consequence
+        self.alternative: BlockStatement = alternative
+
+    def __str__(self) -> str:
+        consequencestr = f"if {self.condition} {self.consequence}"
+        alternativestr = f"else {self.alternative}" if self.alternative else ""
+        return f"{consequencestr} {alternativestr}"
 
 
 class Precedence(enum.IntEnum):
@@ -445,7 +412,7 @@ class Parser:
     PrefixParseFunction = Callable[["Parser"], Expression]
     InfixParseFunction = Callable[["Parser", Expression], Expression]
 
-    PRECEDENCES: Dict[TokenKind, "Precedence"] = {
+    PRECEDENCES: Dict[TokenKind, Precedence] = {
         # fmt: off
         TokenKind.EQ:       Precedence.EQUALS,
         TokenKind.NOT_EQ:   Precedence.EQUALS,
@@ -461,8 +428,8 @@ class Parser:
 
     def __init__(self, lexer: Lexer) -> None:
         self.lexer: Lexer = lexer
-        self.cur_token: Union[Token, None] = None
-        self.peek_token: Union[Token, None] = None
+        self.cur_token: Optional[Token] = None
+        self.peek_token: Optional[Token] = None
 
         self.prefix_parse_fns: Dict[
             TokenKind, Parser.PrefixParseFunction
@@ -724,7 +691,7 @@ class REPL:
 
     def _step(self) -> None:
         line = input(">> ")
-        l = Lexer(line, "<repl>")
+        l = Lexer(line)
         p = Parser(l)
         try:
             program = p.parse_program()
