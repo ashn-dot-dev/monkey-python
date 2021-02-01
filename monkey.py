@@ -495,6 +495,18 @@ class Parser:
             self._next_token()
         return ReturnStatement(token, return_value)
 
+    def parse_block_statement(self) -> BlockStatement:
+        token = self.cur_token
+        statements = list()
+        self._next_token()  # Consume {
+        while not self._cur_token_is(TokenKind.RBRACE):
+            if self._cur_token_is(TokenKind.EOF):
+                tok = self.cur_token
+                raise ParseError(tok, "Unexpected {tok} in block statment")
+            statements.append(self.parse_statement())
+            self._next_token()
+        return BlockStatement(token, statements)
+
     def parse_expression_statement(self) -> ExpressionStatement:
         token = self.cur_token
         expression = self.parse_expression(Precedence.LOWEST)
@@ -537,60 +549,6 @@ class Parser:
         value = True if self.cur_token.kind == TokenKind.TRUE else False
         return BooleanLiteral(self.cur_token, value)
 
-    def parse_prefix_expression(self) -> PrefixExpression:
-        token = self.cur_token
-        operator = self.cur_token.literal
-
-        # Consume the prefix operator.
-        self._next_token()
-
-        right = self.parse_expression(Precedence.PREFIX)
-        return PrefixExpression(token, operator, right)
-
-    def parse_infix_expression(self, left) -> InfixExpression:
-        assert isinstance(left, Expression)
-        token = self.cur_token
-        operator = self.cur_token.literal
-
-        precedence = self._cur_precedence()
-        self._next_token()
-        right = self.parse_expression(precedence)
-
-        return InfixExpression(token, left, operator, right)
-
-    def parse_grouped_expression(self) -> Expression:
-        self._next_token()
-        exp = self.parse_expression(Precedence.LOWEST)
-        self._expect_peek(TokenKind.RPAREN)
-        return exp
-
-    def parse_if_expression(self) -> IfExpression:
-        token = self.cur_token
-        self._expect_peek(TokenKind.LPAREN)
-        self._next_token()  # Consume (
-        condition = self.parse_expression(Precedence.LOWEST)
-        self._expect_peek(TokenKind.RPAREN)
-        self._expect_peek(TokenKind.LBRACE)
-        consequence = self.parse_block_statement()
-        alternative = None
-        if self._peek_token_is(TokenKind.ELSE):
-            self._next_token()
-            self._expect_peek(TokenKind.LBRACE)
-            alternative = self.parse_block_statement()
-        return IfExpression(token, condition, consequence, alternative)
-
-    def parse_block_statement(self) -> BlockStatement:
-        token = self.cur_token
-        statements = list()
-        self._next_token()  # Consume {
-        while not self._cur_token_is(TokenKind.RBRACE):
-            if self._cur_token_is(TokenKind.EOF):
-                tok = self.cur_token
-                raise ParseError(tok, "Unexpected {tok} in block statment")
-            statements.append(self.parse_statement())
-            self._next_token()
-        return BlockStatement(token, statements)
-
     def parse_function_literal(self) -> FunctionLiteral:
         token = self.cur_token
         self._expect_peek(TokenKind.LPAREN)
@@ -618,6 +576,33 @@ class Parser:
         self._expect_peek(TokenKind.RPAREN)
         return identifiers
 
+    def parse_prefix_expression(self) -> PrefixExpression:
+        token = self.cur_token
+        operator = self.cur_token.literal
+
+        # Consume the prefix operator.
+        self._next_token()
+
+        right = self.parse_expression(Precedence.PREFIX)
+        return PrefixExpression(token, operator, right)
+
+    def parse_infix_expression(self, left) -> InfixExpression:
+        assert isinstance(left, Expression)
+        token = self.cur_token
+        operator = self.cur_token.literal
+
+        precedence = self._cur_precedence()
+        self._next_token()
+        right = self.parse_expression(precedence)
+
+        return InfixExpression(token, left, operator, right)
+
+    def parse_grouped_expression(self) -> Expression:
+        self._next_token()
+        exp = self.parse_expression(Precedence.LOWEST)
+        self._expect_peek(TokenKind.RPAREN)
+        return exp
+
     def parse_call_expression(self, function: Expression) -> CallExpression:
         token = self.cur_token
         arguments = self.parse_call_arguments(function)
@@ -638,6 +623,21 @@ class Parser:
 
         self._expect_peek(TokenKind.RPAREN)
         return args
+
+    def parse_if_expression(self) -> IfExpression:
+        token = self.cur_token
+        self._expect_peek(TokenKind.LPAREN)
+        self._next_token()  # Consume (
+        condition = self.parse_expression(Precedence.LOWEST)
+        self._expect_peek(TokenKind.RPAREN)
+        self._expect_peek(TokenKind.LBRACE)
+        consequence = self.parse_block_statement()
+        alternative = None
+        if self._peek_token_is(TokenKind.ELSE):
+            self._next_token()
+            self._expect_peek(TokenKind.LBRACE)
+            alternative = self.parse_block_statement()
+        return IfExpression(token, condition, consequence, alternative)
 
     def _register_prefix(
         self,

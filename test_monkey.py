@@ -124,6 +124,61 @@ class AstTest(unittest.TestCase):
 
 
 class ParserTest(unittest.TestCase):
+    def check_integer_literal(self, expr, value):
+        self.assertIsInstance(expr, monkey.IntegerLiteral)
+        self.assertEqual(expr.value, value)
+        self.assertEqual(expr.token_literal(), str(value))
+
+    def check_boolean_literal(self, expr, value):
+        self.assertIsInstance(expr, monkey.BooleanLiteral)
+        self.assertEqual(expr.value, value)
+        self.assertEqual(expr.token_literal(), str(value).lower())
+
+    def check_identifier(self, expr, value):
+        self.assertIsInstance(expr, monkey.Identifier)
+        self.assertEqual(expr.value, value)
+        self.assertEqual(expr.token_literal(), value)
+
+    def check_simple_prefix_expression(self, expr, operator, right):
+        """
+        Check a prefix expression in the form <OP><LITERAL>
+        """
+        self.assertIsInstance(expr, monkey.PrefixExpression)
+        self.assertEqual(expr.operator, operator)
+        self.check_literal_expression(expr.right, right)
+
+    def check_simple_infix_expression(self, expr, left, operator, right):
+        """
+        Check an infix expression in the form <LITERAL><OP><LITERAL>
+        """
+        self.assertIsInstance(expr, monkey.InfixExpression)
+        self.assertEqual(expr.operator, operator)
+        self.check_literal_expression(expr.left, left)
+        self.check_literal_expression(expr.right, right)
+
+    def check_literal_expression(self, expr, value):
+        t = type(value)
+        if t == int:
+            return self.check_integer_literal(expr, value)
+        elif t == bool:
+            return self.check_boolean_literal(expr, value)
+        elif t == str:
+            return self.check_identifier(expr, value)
+        raise Exception(f"Unexpected type {t}")
+
+    def test_identifier(self):
+        statements = ["foobar;"]
+
+        source = "\n".join(statements)
+        l = monkey.Lexer(source)
+        p = monkey.Parser(l)
+        program = p.parse_program()
+        self.assertEqual(len(program.statements), len(statements))
+
+        stmt = program.statements[0]
+        self.assertIsInstance(stmt, monkey.ExpressionStatement)
+        self.check_identifier(stmt.expression, "foobar")
+
     def test_let_statements(self):
         statements = ["let x = 5;", "let y = true;", "let foobar = y;"]
         TestData = collections.namedtuple("TestData", ["ident", "value"])
@@ -170,20 +225,7 @@ class ParserTest(unittest.TestCase):
             self.assertEqual(stmt.token_literal(), "return")
             self.check_literal_expression(stmt.return_value, expected[i].value)
 
-    def test_identifier_expression(self):
-        statements = ["foobar;"]
-
-        source = "\n".join(statements)
-        l = monkey.Lexer(source)
-        p = monkey.Parser(l)
-        program = p.parse_program()
-        self.assertEqual(len(program.statements), len(statements))
-
-        stmt = program.statements[0]
-        self.assertIsInstance(stmt, monkey.ExpressionStatement)
-        self.check_identifier(stmt.expression, "foobar")
-
-    def test_integer_literal_expression(self):
+    def test_integer_literal(self):
         statements = ["5;"]
 
         source = "\n".join(statements)
@@ -195,6 +237,53 @@ class ParserTest(unittest.TestCase):
         stmt = program.statements[0]
         self.assertIsInstance(stmt, monkey.ExpressionStatement)
         self.check_integer_literal(stmt.expression, 5)
+
+    def test_function_literal(self):
+        source = "fn(x, y) { x + y; }"
+        l = monkey.Lexer(source)
+        p = monkey.Parser(l)
+        program = p.parse_program()
+        self.assertEqual(len(program.statements), 1)
+
+        stmt = program.statements[0]
+        self.assertIsInstance(stmt, monkey.ExpressionStatement)
+
+        expr = stmt.expression
+        self.assertIsInstance(expr, monkey.FunctionLiteral)
+        self.assertEqual(len(expr.parameters), 2)
+        self.check_literal_expression(expr.parameters[0], "x")
+        self.check_literal_expression(expr.parameters[1], "y")
+
+        body = stmt.expression.body
+        self.assertIsInstance(body, monkey.BlockStatement)
+        self.assertEqual(len(body.statements), 1)
+        self.check_simple_infix_expression(
+            body.statements[0].expression, "x", "+", "y"
+        )
+
+    def test_function_parameters(self):
+        TestData = collections.namedtuple("TestData", ["source", "params"])
+        tests = [
+            TestData("fn() {}", []),
+            TestData("fn(x) {}", ["x"]),
+            TestData("fn(x, y, z) {}", ["x", "y", "z"]),
+        ]
+
+        for test in tests:
+            l = monkey.Lexer(test.source)
+            p = monkey.Parser(l)
+            program = p.parse_program()
+            self.assertEqual(len(program.statements), 1)
+
+            stmt = program.statements[0]
+            self.assertIsInstance(stmt, monkey.ExpressionStatement)
+            expr = stmt.expression
+            self.assertIsInstance(expr, monkey.FunctionLiteral)
+
+            for i in range(len(expr.parameters)):
+                self.check_literal_expression(
+                    expr.parameters[i], test.params[i]
+                )
 
     def test_parsing_prefix_expressions(self):
         TestData = collections.namedtuple(
@@ -298,7 +387,25 @@ class ParserTest(unittest.TestCase):
             program = p.parse_program()
             self.assertEqual(str(program), test.expected)
 
-    def test_if_expression_parsing(self):
+    def test_call_expression(self):
+        source = "add(1, 2 * 3, 4 + 5)"
+        l = monkey.Lexer(source)
+        p = monkey.Parser(l)
+        program = p.parse_program()
+        self.assertEqual(len(program.statements), 1)
+
+        stmt = program.statements[0]
+        self.assertIsInstance(stmt, monkey.ExpressionStatement)
+
+        expr = stmt.expression
+        self.assertIsInstance(expr, monkey.CallExpression)
+        self.check_identifier(expr.function, "add")
+        self.assertEqual(len(expr.arguments), 3)
+        self.check_literal_expression(expr.arguments[0], 1)
+        self.check_simple_infix_expression(expr.arguments[1], 2, "*", 3)
+        self.check_simple_infix_expression(expr.arguments[2], 4, "+", 5)
+
+    def test_if_expression(self):
         statements = ["if (x < y) { x }", "if (x < y) { x } else { y }"]
         source = "\n".join(statements)
         l = monkey.Lexer(source)
@@ -323,113 +430,6 @@ class ParserTest(unittest.TestCase):
                 self.check_identifier(
                     expr.alternative.statements[0].expression, "y"
                 )
-
-    def test_function_literal_parsing(self):
-        source = "fn(x, y) { x + y; }"
-        l = monkey.Lexer(source)
-        p = monkey.Parser(l)
-        program = p.parse_program()
-        self.assertEqual(len(program.statements), 1)
-
-        stmt = program.statements[0]
-        self.assertIsInstance(stmt, monkey.ExpressionStatement)
-
-        expr = stmt.expression
-        self.assertIsInstance(expr, monkey.FunctionLiteral)
-        self.assertEqual(len(expr.parameters), 2)
-        self.check_literal_expression(expr.parameters[0], "x")
-        self.check_literal_expression(expr.parameters[1], "y")
-
-        body = stmt.expression.body
-        self.assertIsInstance(body, monkey.BlockStatement)
-        self.assertEqual(len(body.statements), 1)
-        self.check_simple_infix_expression(
-            body.statements[0].expression, "x", "+", "y"
-        )
-
-    def test_function_parameter_testing(self):
-        TestData = collections.namedtuple("TestData", ["source", "params"])
-        tests = [
-            TestData("fn() {}", []),
-            TestData("fn(x) {}", ["x"]),
-            TestData("fn(x, y, z) {}", ["x", "y", "z"]),
-        ]
-
-        for test in tests:
-            l = monkey.Lexer(test.source)
-            p = monkey.Parser(l)
-            program = p.parse_program()
-            self.assertEqual(len(program.statements), 1)
-
-            stmt = program.statements[0]
-            self.assertIsInstance(stmt, monkey.ExpressionStatement)
-            expr = stmt.expression
-            self.assertIsInstance(expr, monkey.FunctionLiteral)
-
-            for i in range(len(expr.parameters)):
-                self.check_literal_expression(
-                    expr.parameters[i], test.params[i]
-                )
-
-    def test_call_expression_parsing(self):
-        source = "add(1, 2 * 3, 4 + 5)"
-        l = monkey.Lexer(source)
-        p = monkey.Parser(l)
-        program = p.parse_program()
-        self.assertEqual(len(program.statements), 1)
-
-        stmt = program.statements[0]
-        self.assertIsInstance(stmt, monkey.ExpressionStatement)
-
-        expr = stmt.expression
-        self.assertIsInstance(expr, monkey.CallExpression)
-        self.check_identifier(expr.function, "add")
-        self.assertEqual(len(expr.arguments), 3)
-        self.check_literal_expression(expr.arguments[0], 1)
-        self.check_simple_infix_expression(expr.arguments[1], 2, "*", 3)
-        self.check_simple_infix_expression(expr.arguments[2], 4, "+", 5)
-
-    def check_integer_literal(self, expr, value):
-        self.assertIsInstance(expr, monkey.IntegerLiteral)
-        self.assertEqual(expr.value, value)
-        self.assertEqual(expr.token_literal(), str(value))
-
-    def check_boolean_literal(self, expr, value):
-        self.assertIsInstance(expr, monkey.BooleanLiteral)
-        self.assertEqual(expr.value, value)
-        self.assertEqual(expr.token_literal(), str(value).lower())
-
-    def check_identifier(self, expr, value):
-        self.assertIsInstance(expr, monkey.Identifier)
-        self.assertEqual(expr.value, value)
-        self.assertEqual(expr.token_literal(), value)
-
-    def check_literal_expression(self, expr, value):
-        t = type(value)
-        if t == int:
-            return self.check_integer_literal(expr, value)
-        elif t == bool:
-            return self.check_boolean_literal(expr, value)
-        elif t == str:
-            return self.check_identifier(expr, value)
-        raise Exception(f"Unexpected type {t}")
-
-    def check_simple_prefix_expression(self, expr, operator, right):
-        """
-        Check a prefix expression in the form <OP><LITERAL>
-        """
-        self.assertIsInstance(expr, monkey.PrefixExpression)
-        self.assertEqual(expr.operator, operator)
-        self.check_literal_expression(expr.right, right)
-
-    def check_simple_infix_expression(self, expr, left, operator, right):
-        """
-        Check an infix expression in the form <LITERAL><OP><LITERAL>
-        """
-        self.assertIsInstance(expr, monkey.InfixExpression)
-        self.assertEqual(expr.operator, operator)
-        self.check_literal_expression(expr.left, left)
-        self.check_literal_expression(expr.right, right)
 
 
 if __name__ == "__main__":
