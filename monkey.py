@@ -788,13 +788,13 @@ class ObjectError(Object):
         return "ERROR"
 
 
-def eval(node: Node, env: Environment) -> Object:
+def eval_ast(node: Node, env: Environment) -> Object:
     if isinstance(node, Program):
-        return eval_program(node, env)
+        return eval_ast_program(node, env)
     if isinstance(node, BlockStatement):
-        return eval_block_statement(node, env)
+        return eval_ast_block_statement(node, env)
     if isinstance(node, LetStatement):
-        val = eval(node.value, env)
+        val = eval_ast(node.value, env)
         if isinstance(val, ObjectError):
             return val
         env.set(node.name.value, val)
@@ -804,14 +804,14 @@ def eval(node: Node, env: Environment) -> Object:
         # object.
         return ObjectNull()
     if isinstance(node, ReturnStatement):
-        ret = eval(node.return_value, env)
+        ret = eval_ast(node.return_value, env)
         if isinstance(ret, ObjectError):
             return ret
         return ObjectReturnValue(ret)
     if isinstance(node, Identifier):
-        return eval_identifier(node, env)
+        return eval_ast_identifier(node, env)
     if isinstance(node, ExpressionStatement):
-        return eval(node.expression, env)
+        return eval_ast(node.expression, env)
     if isinstance(node, IntegerLiteral):
         return ObjectInteger(node.value)
     if isinstance(node, BooleanLiteral):
@@ -821,42 +821,42 @@ def eval(node: Node, env: Environment) -> Object:
         body = node.body
         return ObjectFunction(params, body, env)
     if isinstance(node, PrefixExpression):
-        rhs = eval(node.right, env)
+        rhs = eval_ast(node.right, env)
         if isinstance(rhs, ObjectError):
             return rhs
-        return eval_prefix_expression(node.operator, rhs)
+        return eval_ast_prefix_expression(node.operator, rhs)
     if isinstance(node, InfixExpression):
-        lhs = eval(node.left, env)
+        lhs = eval_ast(node.left, env)
         if isinstance(lhs, ObjectError):
             return lhs
-        rhs = eval(node.right, env)
+        rhs = eval_ast(node.right, env)
         if isinstance(rhs, ObjectError):
             return rhs
-        return eval_infix_expression(lhs, node.operator, rhs)
+        return eval_ast_infix_expression(lhs, node.operator, rhs)
     if isinstance(node, CallExpression):
-        function = eval(node.function, env)
+        function = eval_ast(node.function, env)
         if isinstance(function, ObjectError):
             return function
-        args = eval_expressions(node.arguments, env)
+        args = eval_ast_expressions(node.arguments, env)
         if isinstance(args, ObjectError):
             return args
         return apply_function(function, args)
     if isinstance(node, IfExpression):
-        return eval_if_expression(node, env)
+        return eval_ast_if_expression(node, env)
     raise RuntimeError(f"Unhandled AST node {type(node)}")
 
 
-def eval_identifier(node: Identifier, env: Environment) -> Object:
+def eval_ast_identifier(node: Identifier, env: Environment) -> Object:
     val: Optional[Object] = env.get(node.value)
     if val == None:
         return ObjectError(f"identifier not found: {node.value}")
     return val
 
 
-def eval_program(node: Program, env: Environment) -> Object:
+def eval_ast_program(node: Program, env: Environment) -> Object:
     result: Object = ObjectNull()
     for statement in node.statements:
-        result = eval(statement, env)
+        result = eval_ast(statement, env)
         if isinstance(result, ObjectReturnValue):
             return result.value
         if isinstance(result, ObjectError):
@@ -864,10 +864,10 @@ def eval_program(node: Program, env: Environment) -> Object:
     return result
 
 
-def eval_block_statement(node: BlockStatement, env: Environment) -> Object:
+def eval_ast_block_statement(node: BlockStatement, env: Environment) -> Object:
     result: Object = ObjectNull()
     for statement in node.statements:
-        result = eval(statement, env)
+        result = eval_ast(statement, env)
         if isinstance(result, ObjectReturnValue):
             return result
         if isinstance(result, ObjectError):
@@ -875,28 +875,30 @@ def eval_block_statement(node: BlockStatement, env: Environment) -> Object:
     return result
 
 
-def eval_prefix_expression(operator: str, rhs: Object) -> Object:
-    def eval_prefix_bang(rhs: Object) -> Object:
+def eval_ast_prefix_expression(operator: str, rhs: Object) -> Object:
+    def eval_ast_prefix_bang(rhs: Object) -> Object:
         if isinstance(rhs, ObjectNull):
             return ObjectBoolean(True)
         if isinstance(rhs, ObjectBoolean):
             return ObjectBoolean(not rhs.value)
         return ObjectBoolean(False)
 
-    def eval_prefix_minus(rhs: Object) -> Object:
+    def eval_ast_prefix_minus(rhs: Object) -> Object:
         if not isinstance(rhs, ObjectInteger):
             return ObjectError(f"unknown operator: -{rhs.type}")
         return ObjectInteger(-rhs.value)
 
     if operator == "!":
-        return eval_prefix_bang(rhs)
+        return eval_ast_prefix_bang(rhs)
     if operator == "-":
-        return eval_prefix_minus(rhs)
+        return eval_ast_prefix_minus(rhs)
     return ObjectError(f"unknown operator: {operator}{rhs.type}")
 
 
-def eval_infix_expression(lhs: Object, operator: str, rhs: Object) -> Object:
-    def eval_integer_infix_expression(
+def eval_ast_infix_expression(
+    lhs: Object, operator: str, rhs: Object
+) -> Object:
+    def eval_ast_integer_infix_expression(
         operator: str, lhs: ObjectInteger, rhs: ObjectInteger
     ) -> Object:
         if operator == "+":
@@ -919,7 +921,7 @@ def eval_infix_expression(lhs: Object, operator: str, rhs: Object) -> Object:
             f"unknown operator: {lhs.type} {operator} {rhs.type}"
         )
 
-    def eval_boolean_infix_expression(
+    def eval_ast_boolean_infix_expression(
         operator: str, lhs: ObjectBoolean, rhs: ObjectBoolean
     ) -> Object:
         if operator == "==":
@@ -931,13 +933,13 @@ def eval_infix_expression(lhs: Object, operator: str, rhs: Object) -> Object:
         )
 
     if isinstance(lhs, ObjectInteger) and isinstance(rhs, ObjectInteger):
-        return eval_integer_infix_expression(operator, lhs, rhs)
+        return eval_ast_integer_infix_expression(operator, lhs, rhs)
     if isinstance(lhs, ObjectBoolean) and isinstance(rhs, ObjectBoolean):
-        return eval_boolean_infix_expression(operator, lhs, rhs)
+        return eval_ast_boolean_infix_expression(operator, lhs, rhs)
     return ObjectError(f"type mismatch: {lhs.type} {operator} {rhs.type}")
 
 
-def eval_if_expression(node: IfExpression, env: Environment) -> Object:
+def eval_ast_if_expression(node: IfExpression, env: Environment) -> Object:
     def is_truthy(obj: Object) -> bool:
         if isinstance(obj, ObjectNull):
             return False
@@ -945,21 +947,22 @@ def eval_if_expression(node: IfExpression, env: Environment) -> Object:
             return False
         return True
 
-    condition = eval(node.condition, env)
+    condition = eval_ast(node.condition, env)
     if isinstance(condition, ObjectError):
         return condition
     if is_truthy(condition):
-        return eval(node.consequence, env)
+        return eval_ast(node.consequence, env)
     elif node.alternative != None:
-        return eval(node.alternative, env)
+        return eval_ast(node.alternative, env)
     return ObjectNull()
 
-def eval_expressions(
+
+def eval_ast_expressions(
     expressions: List[Expression], env: Environment
 ) -> Union[List[Object], ObjectError]:
     result: List[Object] = list()
     for expr in expressions:
-        evaluated = eval(expr, env)
+        evaluated = eval_ast(expr, env)
         if isinstance(evaluated, ObjectError):
             return evaluated
         result.append(evaluated)
@@ -978,7 +981,7 @@ def apply_function(fn: Object, args: List[Object]) -> Object:
         return env
 
     env = extend_env(fn, args)
-    evaluated = eval(fn.body, env)
+    evaluated = eval_ast(fn.body, env)
     if isinstance(evaluated, ObjectReturnValue):
         return evaluated.value
     return evaluated
@@ -1003,7 +1006,7 @@ class REPL:
         p = Parser(l)
         try:
             program = p.parse_program()
-            evaluated = eval(program, env)
+            evaluated = eval_ast(program, env)
             print(str(evaluated))
         except ParseError as e:
             print(e)

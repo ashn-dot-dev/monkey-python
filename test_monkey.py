@@ -439,7 +439,7 @@ class EvalTest(unittest.TestCase):
         l = monkey.Lexer(source)
         p = monkey.Parser(l)
         program = p.parse_program()
-        return monkey.eval(program, monkey.Environment())
+        return monkey.eval_ast(program, monkey.Environment())
 
     def check_null(self, obj: monkey.Object) -> None:
         self.assertIsInstance(obj, monkey.ObjectNull)
