@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import enum
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Union, cast
 
 
 class SourceLocation:
@@ -216,7 +216,7 @@ class Node:
 
     def __str__(self) -> str:
         """
-        The Node.String() method from the "Writing and Interpreter in Go".
+        The Node.String() method from "Writing and Interpreter in Go".
         Used to print the AST nodes for debugging (pg 64).
         """
         raise NotImplementedError()
@@ -281,7 +281,7 @@ class BlockStatement(Statement):
         self.statements: List[Statement] = statements
 
     def __str__(self) -> str:
-        s = "".join(map(str, self.statements))
+        s = "; ".join(map(str, self.statements))
         return f"{{ {s} }}"
 
 
@@ -675,30 +675,338 @@ class Parser:
         return Parser.PRECEDENCES.get(self.peek_token.kind, Precedence.LOWEST)
 
 
+class Object:
+    def __init__(self) -> None:
+        raise NotImplementedError()
+
+    def __str__(self) -> str:
+        """
+        The Object.Inspect() method from "Writing and Interpreter in Go".
+        """
+        raise NotImplementedError()
+
+    @property
+    def type(self) -> str:
+        """
+        The Object.Type() method from the "Writing and Interpreter in Go".
+        """
+        raise NotImplementedError()
+
+
+class Environment:
+    def __init__(self, outer: Optional["Environment"] = None) -> None:
+        self.outer: Optional["Environment"] = outer
+        self.store: Dict[str, Object] = dict()
+
+    def get(self, name: str) -> Optional[Object]:
+        obj = self.store.get(name, None)
+        if obj == None and self.outer != None:
+            return self.outer.get(name)
+        return obj
+
+    def set(self, name: str, val: Object) -> None:
+        self.store[name] = val
+
+
+class ObjectNull(Object):
+    def __init__(self) -> None:
+        pass
+
+    def __str__(self) -> str:
+        return "null"
+
+    @property
+    def type(self) -> str:
+        return "NULL"
+
+
+class ObjectInteger(Object):
+    def __init__(self, value: int) -> None:
+        self.value: int = value
+
+    def __str__(self) -> str:
+        return str(self.value)
+
+    @property
+    def type(self) -> str:
+        return "INTEGER"
+
+
+class ObjectBoolean(Object):
+    def __init__(self, value: bool) -> None:
+        self.value: bool = value
+
+    def __str__(self) -> str:
+        return str(self.value).lower()
+
+    @property
+    def type(self) -> str:
+        return "BOOLEAN"
+
+
+class ObjectFunction(Object):
+    def __init__(
+        self,
+        parameters: List[Identifier],
+        body: BlockStatement,
+        env: Environment,
+    ) -> None:
+        self.parameters: List[Identifier] = parameters
+        self.body: BlockStatement = body
+        self.env: Environment = env
+
+    def __str__(self) -> str:
+        params = ", ".join(map(str, self.parameters))
+        return f"fn({params}) {self.body} }}"
+
+    @property
+    def type(self) -> str:
+        return "FUNCTION"
+
+
+class ObjectReturnValue(Object):
+    def __init__(self, value: Object) -> None:
+        self.value: Object = value
+
+    def __str__(self) -> str:
+        return str(self.value)
+
+    @property
+    def type(self) -> str:
+        return "RETURN VALUE"
+
+
+class ObjectError(Object):
+    def __init__(self, what: str) -> None:
+        self.what = what
+
+    def __str__(self) -> str:
+        return str(self.what)
+
+    @property
+    def type(self) -> str:
+        return "ERROR"
+
+
+def eval(node: Node, env: Environment) -> Object:
+    if isinstance(node, Program):
+        return eval_program(node, env)
+    if isinstance(node, BlockStatement):
+        return eval_block_statement(node, env)
+    if isinstance(node, LetStatement):
+        val = eval(node.value, env)
+        if isinstance(val, ObjectError):
+            return val
+        env.set(node.name.value, val)
+        # Note: The book's implementation of Eval does not return a value here
+        # and instead returns nil at the end of the evaluator.Eval function.
+        # This interpreter chooses to make the result of a let statement a null
+        # object.
+        return ObjectNull()
+    if isinstance(node, ReturnStatement):
+        ret = eval(node.return_value, env)
+        if isinstance(ret, ObjectError):
+            return ret
+        return ObjectReturnValue(ret)
+    if isinstance(node, Identifier):
+        return eval_identifier(node, env)
+    if isinstance(node, ExpressionStatement):
+        return eval(node.expression, env)
+    if isinstance(node, IntegerLiteral):
+        return ObjectInteger(node.value)
+    if isinstance(node, BooleanLiteral):
+        return ObjectBoolean(node.value)
+    if isinstance(node, FunctionLiteral):
+        params = node.parameters
+        body = node.body
+        return ObjectFunction(params, body, env)
+    if isinstance(node, PrefixExpression):
+        rhs = eval(node.right, env)
+        if isinstance(rhs, ObjectError):
+            return rhs
+        return eval_prefix_expression(node.operator, rhs)
+    if isinstance(node, InfixExpression):
+        lhs = eval(node.left, env)
+        if isinstance(lhs, ObjectError):
+            return lhs
+        rhs = eval(node.right, env)
+        if isinstance(rhs, ObjectError):
+            return rhs
+        return eval_infix_expression(lhs, node.operator, rhs)
+    if isinstance(node, CallExpression):
+        function = eval(node.function, env)
+        if isinstance(function, ObjectError):
+            return function
+        args = eval_expressions(node.arguments, env)
+        if isinstance(args, ObjectError):
+            return args
+        return apply_function(function, args)
+    if isinstance(node, IfExpression):
+        return eval_if_expression(node, env)
+    raise RuntimeError(f"Unhandled AST node {type(node)}")
+
+
+def eval_identifier(node: Identifier, env: Environment) -> Object:
+    val: Optional[Object] = env.get(node.value)
+    if val == None:
+        return ObjectError(f"identifier not found: {node.value}")
+    return val
+
+
+def eval_program(node: Program, env: Environment) -> Object:
+    result: Object = ObjectNull()
+    for statement in node.statements:
+        result = eval(statement, env)
+        if isinstance(result, ObjectReturnValue):
+            return result.value
+        if isinstance(result, ObjectError):
+            return result
+    return result
+
+
+def eval_block_statement(node: BlockStatement, env: Environment) -> Object:
+    result: Object = ObjectNull()
+    for statement in node.statements:
+        result = eval(statement, env)
+        if isinstance(result, ObjectReturnValue):
+            return result
+        if isinstance(result, ObjectError):
+            return result
+    return result
+
+
+def eval_prefix_expression(operator: str, rhs: Object) -> Object:
+    def eval_prefix_bang(rhs: Object) -> Object:
+        if isinstance(rhs, ObjectNull):
+            return ObjectBoolean(True)
+        if isinstance(rhs, ObjectBoolean):
+            return ObjectBoolean(not rhs.value)
+        return ObjectBoolean(False)
+
+    def eval_prefix_minus(rhs: Object) -> Object:
+        if not isinstance(rhs, ObjectInteger):
+            return ObjectError(f"unknown operator: -{rhs.type}")
+        return ObjectInteger(-rhs.value)
+
+    if operator == "!":
+        return eval_prefix_bang(rhs)
+    if operator == "-":
+        return eval_prefix_minus(rhs)
+    return ObjectError(f"unknown operator: {operator}{rhs.type}")
+
+
+def eval_infix_expression(lhs: Object, operator: str, rhs: Object) -> Object:
+    def eval_integer_infix_expression(
+        operator: str, lhs: ObjectInteger, rhs: ObjectInteger
+    ) -> Object:
+        if operator == "+":
+            return ObjectInteger(lhs.value + rhs.value)
+        if operator == "-":
+            return ObjectInteger(lhs.value - rhs.value)
+        if operator == "*":
+            return ObjectInteger(lhs.value * rhs.value)
+        if operator == "/":
+            return ObjectInteger(lhs.value // rhs.value)
+        if operator == "<":
+            return ObjectBoolean(lhs.value < rhs.value)
+        if operator == ">":
+            return ObjectBoolean(lhs.value > rhs.value)
+        if operator == "==":
+            return ObjectBoolean(lhs.value == rhs.value)
+        if operator == "!=":
+            return ObjectBoolean(lhs.value != rhs.value)
+        return ObjectError(
+            f"unknown operator: {lhs.type} {operator} {rhs.type}"
+        )
+
+    def eval_boolean_infix_expression(
+        operator: str, lhs: ObjectBoolean, rhs: ObjectBoolean
+    ) -> Object:
+        if operator == "==":
+            return ObjectBoolean(lhs.value == rhs.value)
+        if operator == "!=":
+            return ObjectBoolean(lhs.value != rhs.value)
+        return ObjectError(
+            f"unknown operator: {lhs.type} {operator} {rhs.type}"
+        )
+
+    if isinstance(lhs, ObjectInteger) and isinstance(rhs, ObjectInteger):
+        return eval_integer_infix_expression(operator, lhs, rhs)
+    if isinstance(lhs, ObjectBoolean) and isinstance(rhs, ObjectBoolean):
+        return eval_boolean_infix_expression(operator, lhs, rhs)
+    return ObjectError(f"type mismatch: {lhs.type} {operator} {rhs.type}")
+
+
+def eval_if_expression(node: IfExpression, env: Environment) -> Object:
+    def is_truthy(obj: Object) -> bool:
+        if isinstance(obj, ObjectNull):
+            return False
+        if isinstance(obj, ObjectBoolean) and not obj.value:
+            return False
+        return True
+
+    condition = eval(node.condition, env)
+    if isinstance(condition, ObjectError):
+        return condition
+    if is_truthy(condition):
+        return eval(node.consequence, env)
+    elif node.alternative != None:
+        return eval(node.alternative, env)
+    return ObjectNull()
+
+def eval_expressions(
+    expressions: List[Expression], env: Environment
+) -> Union[List[Object], ObjectError]:
+    result: List[Object] = list()
+    for expr in expressions:
+        evaluated = eval(expr, env)
+        if isinstance(evaluated, ObjectError):
+            return evaluated
+        result.append(evaluated)
+    return result
+
+
+def apply_function(fn: Object, args: List[Object]) -> Object:
+    if not isinstance(fn, Object):
+        return ObjectError(f"not a function: {fn.type}")
+    fn = cast(ObjectFunction, fn)
+
+    def extend_env(fn: ObjectFunction, args: List[Object]) -> Environment:
+        env = Environment(fn.env)
+        for i in range(len(fn.parameters)):
+            env.set(fn.parameters[i].value, args[i])
+        return env
+
+    env = extend_env(fn, args)
+    evaluated = eval(fn.body, env)
+    if isinstance(evaluated, ObjectReturnValue):
+        return evaluated.value
+    return evaluated
+
+
 class REPL:
     def __init__(self):
         pass
 
     def run(self) -> None:
+        env: Environment = Environment()
         while True:
             try:
-                self._step()
-            except ParseError as e:
-                print(e)
+                self._step(env)
             except (EOFError, KeyboardInterrupt):
                 print("", end="\n")
                 return
 
-    def _step(self) -> None:
+    def _step(self, env: Environment) -> None:
         line = input(">> ")
         l = Lexer(line)
         p = Parser(l)
         try:
             program = p.parse_program()
+            evaluated = eval(program, env)
+            print(str(evaluated))
         except ParseError as e:
             print(e)
-            return
-        print(program)
 
 
 if __name__ == "__main__":

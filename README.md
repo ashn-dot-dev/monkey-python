@@ -8,5 +8,15 @@ Ball's [Writing an Interpreter in Go](https://interpreterbook.com/).
 precision `int` type to represent the value of integers.
 + The interpreter in the book propagates `nil` up the stack upon parse failure.
 Rather than return the equivalent `None` this interpreter chooses to instead
-raise a `ParseError` exception. This simplifies much of the parsing code in
-exchange for stopping the parsing phase at the first parse failure.
+raise a `ParseError` exception.
++ The interpreter in the book creates and reuses a single instance of the
+boolean-true, boolean-false, and null objects. This interpreter creates new
+instances of these object any time such values are produced during evaluation.
+The book correctly notes that using a single instance of these objects is
+(likely) faster and will save on resources, but in my opinion it creates much
+uglier code, and performance is not a particularly important issue for a toy
+interpreter.
++ The interpreter in the book returns `nil` as the result of a call to
+`evaluator.Eval` when passed an `ast.LetStatement`. Returning `nil` from a
+function that should always return an `object.Object` violates type safety, so
+this interpreter chooses to instead return a null object.
