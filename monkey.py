@@ -861,9 +861,7 @@ def eval_ast(node: AstNode, env: Environment) -> Object:
 
 def eval_ast_identifier(node: AstIdentifier, env: Environment) -> Object:
     val: Optional[Object] = env.get(node.value)
-    if val == None:
-        return ObjectError(f"identifier not found: {node.value}")
-    return val
+    return val or ObjectError(f"identifier not found: {node.value}")
 
 
 def eval_ast_program(node: AstProgram, env: Environment) -> Object:
@@ -1006,9 +1004,7 @@ def eval_source(source: str, env: Optional[Environment] = None) -> Object:
     lexer: Lexer = Lexer(source)
     parser: Parser = Parser(lexer)
     ast: AstNode = parser.parse_program()
-    if env == None:
-        env = Environment()
-    return eval_ast(ast, env)
+    return eval_ast(ast, env or Environment())
 
 
 class REPL:
