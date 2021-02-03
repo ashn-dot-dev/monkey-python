@@ -203,7 +203,7 @@ class ParseError(Exception):
         return f"[{self.tok.source_location}] {self.why}"
 
 
-class Node:
+class AstNode:
     def __init__(self) -> None:
         self.token: Token
         raise NotImplementedError()
@@ -222,19 +222,19 @@ class Node:
         raise NotImplementedError()
 
 
-class Statement(Node):
+class AstStatement(AstNode):
     def __init__(self) -> None:
         raise NotImplementedError()
 
 
-class Expression(Node):
+class AstExpression(AstNode):
     def __init__(self) -> None:
         raise NotImplementedError()
 
 
-class Program(Node):
+class AstProgram(AstNode):
     def __init__(self) -> None:
-        self.statements: List[Statement] = list()
+        self.statements: List[AstStatement] = list()
 
     def token_literal(self) -> str:
         if len(self.statements) > 0:
@@ -245,7 +245,7 @@ class Program(Node):
         return str().join(map(str, self.statements))
 
 
-class Identifier(Expression):
+class AstIdentifier(AstExpression):
     def __init__(self, token: Token, value: str) -> None:
         self.token: Token = token
         self.value: str = value
@@ -254,47 +254,47 @@ class Identifier(Expression):
         return str(self.value)
 
 
-class LetStatement(Statement):
+class AstLetStatement(AstStatement):
     def __init__(
-        self, token: Token, name: Identifier, value: Expression
+        self, token: Token, name: AstIdentifier, value: AstExpression
     ) -> None:
         self.token: Token = token  # The "let" token.
-        self.name: Identifier = name  # Identifier being bound to.
-        self.value: Expression = value  # Expression being bound.
+        self.name: AstIdentifier = name  # Identifier being bound to.
+        self.value: AstExpression = value  # Expression being bound.
 
     def __str__(self):
         return f"{self.token_literal()} {self.name} = {self.value};"
 
 
-class ReturnStatement(Statement):
-    def __init__(self, token: Token, return_value: Expression) -> None:
+class AstReturnStatement(AstStatement):
+    def __init__(self, token: Token, return_value: AstExpression) -> None:
         self.token: Token = token  # The "return" token.
-        self.return_value: Expression = return_value
+        self.return_value: AstExpression = return_value
 
     def __str__(self):
         return f"{self.token_literal()} {self.return_value};"
 
 
-class BlockStatement(Statement):
-    def __init__(self, token: Token, statements: List[Statement]) -> None:
+class AstBlockStatement(AstStatement):
+    def __init__(self, token: Token, statements: List[AstStatement]) -> None:
         self.token: Token = token  # The "{" token
-        self.statements: List[Statement] = statements
+        self.statements: List[AstStatement] = statements
 
     def __str__(self) -> str:
         s = "; ".join(map(str, self.statements))
         return f"{{ {s} }}"
 
 
-class ExpressionStatement(Statement):
-    def __init__(self, token: Token, expression: Expression) -> None:
+class AstExpressionStatement(AstStatement):
+    def __init__(self, token: Token, expression: AstExpression) -> None:
         self.token: Token = token
-        self.expression: Expression = expression
+        self.expression: AstExpression = expression
 
     def __str__(self):
         return str(self.expression)
 
 
-class IntegerLiteral(Expression):
+class AstIntegerLiteral(AstExpression):
     def __init__(self, token: Token, value: int) -> None:
         self.token: Token = token
         self.value: int = value
@@ -303,7 +303,7 @@ class IntegerLiteral(Expression):
         return str(self.value)
 
 
-class BooleanLiteral(Expression):
+class AstBooleanLiteral(AstExpression):
     def __init__(self, token: Token, value: bool) -> None:
         self.token: Token = token
         self.value: bool = value
@@ -312,67 +312,79 @@ class BooleanLiteral(Expression):
         return self.token.literal
 
 
-class FunctionLiteral(Expression):
+class AstFunctionLiteral(AstExpression):
     def __init__(
-        self, token: Token, parameters: List[Identifier], body: BlockStatement,
+        self,
+        token: Token,
+        parameters: List[AstIdentifier],
+        body: AstBlockStatement,
     ) -> None:
         self.token: Token = token  # the "fn" token
-        self.parameters: List[Identifier] = parameters
-        self.body: BlockStatement = body
+        self.parameters: List[AstIdentifier] = parameters
+        self.body: AstBlockStatement = body
 
     def __str__(self) -> str:
         params = ", ".join(map(str, self.parameters))
         return f"{self.token}({params}) {self.body} }}"
 
 
-class PrefixExpression(Expression):
-    def __init__(self, token: Token, operator: str, right: Expression) -> None:
+class AstPrefixExpression(AstExpression):
+    def __init__(
+        self, token: Token, operator: str, right: AstExpression
+    ) -> None:
         self.token: Token = token  # The prefix token, e.g. !
         self.operator: str = operator
-        self.right: Expression = right
+        self.right: AstExpression = right
 
     def __str__(self):
         return f"({self.operator}{self.right})"
 
 
-class InfixExpression(Expression):
+class AstInfixExpression(AstExpression):
     def __init__(
-        self, token: Token, left: Expression, operator: str, right: Expression
+        self,
+        token: Token,
+        left: AstExpression,
+        operator: str,
+        right: AstExpression,
     ) -> None:
         self.token: Token = token  # The infix token, e.g. +
-        self.left: Expression = left
+        self.left: AstExpression = left
         self.operator: str = operator
-        self.right: Expression = right
+        self.right: AstExpression = right
 
     def __str__(self):
         return f"({self.left} {self.operator} {self.right})"
 
 
-class CallExpression(Expression):
+class AstCallExpression(AstExpression):
     def __init__(
-        self, token: Token, function: Expression, arguments: List[Expression],
+        self,
+        token: Token,
+        function: AstExpression,
+        arguments: List[AstExpression],
     ) -> None:
         self.token: Token = token  # the "(" token.
-        self.function: Expression = function
-        self.arguments: List[Expression] = arguments
+        self.function: AstExpression = function
+        self.arguments: List[AstExpression] = arguments
 
     def __str__(self) -> str:
         args = ", ".join(map(str, self.arguments))
         return f"{self.function}({args})"
 
 
-class IfExpression(Expression):
+class AstIfExpression(AstExpression):
     def __init__(
         self,
         token: Token,
-        condition: Expression,
-        consequence: BlockStatement,
-        alternative: Optional[BlockStatement],
+        condition: AstExpression,
+        consequence: AstBlockStatement,
+        alternative: Optional[AstBlockStatement],
     ) -> None:
         self.token: Token = token  # The "if" token
-        self.condition: Expression = condition
-        self.consequence: BlockStatement = consequence
-        self.alternative: BlockStatement = alternative
+        self.condition: AstExpression = condition
+        self.consequence: AstBlockStatement = consequence
+        self.alternative: AstBlockStatement = alternative
 
     def __str__(self) -> str:
         consequencestr = f"if {self.condition} {self.consequence}"
@@ -401,16 +413,16 @@ class Parser:
     # > a prefix or an infix position.
     # >     - Writing and Interpreter in Go, ver 1.7, pg. 67.
     #
-    # PrefixParseFunction : func()           -> Expression
-    # InfixParseFunction  : func(Expression) -> Expression
+    # PrefixParseFunction : func()              -> AstExpression
+    # InfixParseFunction  : func(AstExpression) -> AstExpression
     #
-    # Both the prefix and infix parse functions return an Expression.
+    # Both the prefix and infix parse functions return an AstExpression.
     # The prefix parse function takes no argument and parses the expression on
     # the right hand side of a prefix operator being parsed. The infix parse
     # functions takes and argument representing the left hand side of and infix
     # operator being parsed.
-    PrefixParseFunction = Callable[["Parser"], Expression]
-    InfixParseFunction = Callable[["Parser", Expression], Expression]
+    PrefixParseFunction = Callable[["Parser"], AstExpression]
+    InfixParseFunction = Callable[["Parser", AstExpression], AstExpression]
 
     PRECEDENCES: Dict[TokenKind, Precedence] = {
         # fmt: off
@@ -461,41 +473,41 @@ class Parser:
         self._next_token()
         self._next_token()
 
-    def parse_program(self) -> Program:
-        program = Program()
+    def parse_program(self) -> AstProgram:
+        program = AstProgram()
         while not self._cur_token_is(TokenKind.EOF):
             stmt = self.parse_statement()
             program.statements.append(stmt)
             self._next_token()
         return program
 
-    def parse_statement(self) -> Statement:
+    def parse_statement(self) -> AstStatement:
         if self._cur_token_is(TokenKind.LET):
             return self.parse_let_statement()
         if self._cur_token_is(TokenKind.RETURN):
             return self.parse_return_statement()
         return self.parse_expression_statement()
 
-    def parse_let_statement(self) -> LetStatement:
+    def parse_let_statement(self) -> AstLetStatement:
         token = self.cur_token
         self._expect_peek(TokenKind.IDENT)
-        name = Identifier(self.cur_token, self.cur_token.literal)
+        name = AstIdentifier(self.cur_token, self.cur_token.literal)
         self._expect_peek(TokenKind.ASSIGN)
         self._next_token()
         value = self.parse_expression(Precedence.LOWEST)
         if self._peek_token_is(TokenKind.SEMICOLON):
             self._next_token()
-        return LetStatement(token, name, value)
+        return AstLetStatement(token, name, value)
 
-    def parse_return_statement(self) -> ReturnStatement:
+    def parse_return_statement(self) -> AstReturnStatement:
         token = self.cur_token
         self._next_token()
         return_value = self.parse_expression(Precedence.LOWEST)
         if self._peek_token_is(TokenKind.SEMICOLON):
             self._next_token()
-        return ReturnStatement(token, return_value)
+        return AstReturnStatement(token, return_value)
 
-    def parse_block_statement(self) -> BlockStatement:
+    def parse_block_statement(self) -> AstBlockStatement:
         token = self.cur_token
         statements = list()
         self._next_token()  # Consume {
@@ -505,9 +517,9 @@ class Parser:
                 raise ParseError(tok, "Unexpected {tok} in block statment")
             statements.append(self.parse_statement())
             self._next_token()
-        return BlockStatement(token, statements)
+        return AstBlockStatement(token, statements)
 
-    def parse_expression_statement(self) -> ExpressionStatement:
+    def parse_expression_statement(self) -> AstExpressionStatement:
         token = self.cur_token
         expression = self.parse_expression(Precedence.LOWEST)
         if self._peek_token_is(TokenKind.SEMICOLON):
@@ -516,9 +528,9 @@ class Parser:
             # >> 5 + 5
             # into the REPL later on.
             self._next_token()
-        return ExpressionStatement(token, expression)
+        return AstExpressionStatement(token, expression)
 
-    def parse_expression(self, precedence: "Precedence") -> Expression:
+    def parse_expression(self, precedence: "Precedence") -> AstExpression:
         prefix = self.prefix_parse_fns.get(self.cur_token.kind)
         if prefix == None:
             tok = self.cur_token
@@ -533,50 +545,50 @@ class Parser:
             left_exp = infix(self, left_exp)
         return left_exp
 
-    def parse_identifier(self) -> Identifier:
+    def parse_identifier(self) -> AstIdentifier:
         assert self.cur_token.kind == TokenKind.IDENT
-        return Identifier(self.cur_token, self.cur_token.literal)
+        return AstIdentifier(self.cur_token, self.cur_token.literal)
 
-    def parse_integer_literal(self) -> IntegerLiteral:
+    def parse_integer_literal(self) -> AstIntegerLiteral:
         assert self.cur_token.kind == TokenKind.INT
-        return IntegerLiteral(self.cur_token, int(self.cur_token.literal))
+        return AstIntegerLiteral(self.cur_token, int(self.cur_token.literal))
 
-    def parse_boolean_literal(self) -> BooleanLiteral:
+    def parse_boolean_literal(self) -> AstBooleanLiteral:
         assert (
             self.cur_token.kind == TokenKind.TRUE
             or self.cur_token.kind == TokenKind.FALSE
         )
         value = True if self.cur_token.kind == TokenKind.TRUE else False
-        return BooleanLiteral(self.cur_token, value)
+        return AstBooleanLiteral(self.cur_token, value)
 
-    def parse_function_literal(self) -> FunctionLiteral:
+    def parse_function_literal(self) -> AstFunctionLiteral:
         token = self.cur_token
         self._expect_peek(TokenKind.LPAREN)
         parameters = self.parse_function_parameters()
         self._expect_peek(TokenKind.LBRACE)
         body = self.parse_block_statement()
-        return FunctionLiteral(token, parameters, body)
+        return AstFunctionLiteral(token, parameters, body)
 
-    def parse_function_parameters(self) -> List[Identifier]:
-        identifiers: List[Identifier] = list()
+    def parse_function_parameters(self) -> List[AstIdentifier]:
+        identifiers: List[AstIdentifier] = list()
         if self._peek_token_is(TokenKind.RPAREN):
             self._next_token()
             return identifiers
 
         self._next_token()
-        ident = Identifier(self.cur_token, self.cur_token.literal)
+        ident = AstIdentifier(self.cur_token, self.cur_token.literal)
         identifiers.append(ident)
 
         while self._peek_token_is(TokenKind.COMMA):
             self._next_token()
             self._next_token()
-            ident = Identifier(self.cur_token, self.cur_token.literal)
+            ident = AstIdentifier(self.cur_token, self.cur_token.literal)
             identifiers.append(ident)
 
         self._expect_peek(TokenKind.RPAREN)
         return identifiers
 
-    def parse_prefix_expression(self) -> PrefixExpression:
+    def parse_prefix_expression(self) -> AstPrefixExpression:
         token = self.cur_token
         operator = self.cur_token.literal
 
@@ -584,10 +596,9 @@ class Parser:
         self._next_token()
 
         right = self.parse_expression(Precedence.PREFIX)
-        return PrefixExpression(token, operator, right)
+        return AstPrefixExpression(token, operator, right)
 
-    def parse_infix_expression(self, left) -> InfixExpression:
-        assert isinstance(left, Expression)
+    def parse_infix_expression(self, left: AstExpression) -> AstInfixExpression:
         token = self.cur_token
         operator = self.cur_token.literal
 
@@ -595,21 +606,23 @@ class Parser:
         self._next_token()
         right = self.parse_expression(precedence)
 
-        return InfixExpression(token, left, operator, right)
+        return AstInfixExpression(token, left, operator, right)
 
-    def parse_grouped_expression(self) -> Expression:
+    def parse_grouped_expression(self) -> AstExpression:
         self._next_token()
         exp = self.parse_expression(Precedence.LOWEST)
         self._expect_peek(TokenKind.RPAREN)
         return exp
 
-    def parse_call_expression(self, function: Expression) -> CallExpression:
+    def parse_call_expression(
+        self, function: AstExpression
+    ) -> AstCallExpression:
         token = self.cur_token
         arguments = self.parse_call_arguments(function)
-        return CallExpression(token, function, arguments)
+        return AstCallExpression(token, function, arguments)
 
-    def parse_call_arguments(self, function) -> List[Expression]:
-        args: List[Expression] = []
+    def parse_call_arguments(self, function) -> List[AstExpression]:
+        args: List[AstExpression] = []
         if self._peek_token_is(TokenKind.RPAREN):
             self._next_token()
             return args
@@ -624,7 +637,7 @@ class Parser:
         self._expect_peek(TokenKind.RPAREN)
         return args
 
-    def parse_if_expression(self) -> IfExpression:
+    def parse_if_expression(self) -> AstIfExpression:
         token = self.cur_token
         self._expect_peek(TokenKind.LPAREN)
         self._next_token()  # Consume (
@@ -637,7 +650,7 @@ class Parser:
             self._next_token()
             self._expect_peek(TokenKind.LBRACE)
             alternative = self.parse_block_statement()
-        return IfExpression(token, condition, consequence, alternative)
+        return AstIfExpression(token, condition, consequence, alternative)
 
     def _register_prefix(
         self,
@@ -747,12 +760,12 @@ class ObjectBoolean(Object):
 class ObjectFunction(Object):
     def __init__(
         self,
-        parameters: List[Identifier],
-        body: BlockStatement,
+        parameters: List[AstIdentifier],
+        body: AstBlockStatement,
         env: Environment,
     ) -> None:
-        self.parameters: List[Identifier] = parameters
-        self.body: BlockStatement = body
+        self.parameters: List[AstIdentifier] = parameters
+        self.body: AstBlockStatement = body
         self.env: Environment = env
 
     def __str__(self) -> str:
@@ -788,12 +801,12 @@ class ObjectError(Object):
         return "ERROR"
 
 
-def eval_ast(node: Node, env: Environment) -> Object:
-    if isinstance(node, Program):
+def eval_ast(node: AstNode, env: Environment) -> Object:
+    if isinstance(node, AstProgram):
         return eval_ast_program(node, env)
-    if isinstance(node, BlockStatement):
+    if isinstance(node, AstBlockStatement):
         return eval_ast_block_statement(node, env)
-    if isinstance(node, LetStatement):
+    if isinstance(node, AstLetStatement):
         val = eval_ast(node.value, env)
         if isinstance(val, ObjectError):
             return val
@@ -803,29 +816,29 @@ def eval_ast(node: Node, env: Environment) -> Object:
         # This interpreter chooses to make the result of a let statement a null
         # object.
         return ObjectNull()
-    if isinstance(node, ReturnStatement):
+    if isinstance(node, AstReturnStatement):
         ret = eval_ast(node.return_value, env)
         if isinstance(ret, ObjectError):
             return ret
         return ObjectReturnValue(ret)
-    if isinstance(node, Identifier):
+    if isinstance(node, AstIdentifier):
         return eval_ast_identifier(node, env)
-    if isinstance(node, ExpressionStatement):
+    if isinstance(node, AstExpressionStatement):
         return eval_ast(node.expression, env)
-    if isinstance(node, IntegerLiteral):
+    if isinstance(node, AstIntegerLiteral):
         return ObjectInteger(node.value)
-    if isinstance(node, BooleanLiteral):
+    if isinstance(node, AstBooleanLiteral):
         return ObjectBoolean(node.value)
-    if isinstance(node, FunctionLiteral):
+    if isinstance(node, AstFunctionLiteral):
         params = node.parameters
         body = node.body
         return ObjectFunction(params, body, env)
-    if isinstance(node, PrefixExpression):
+    if isinstance(node, AstPrefixExpression):
         rhs = eval_ast(node.right, env)
         if isinstance(rhs, ObjectError):
             return rhs
         return eval_ast_prefix_expression(node.operator, rhs)
-    if isinstance(node, InfixExpression):
+    if isinstance(node, AstInfixExpression):
         lhs = eval_ast(node.left, env)
         if isinstance(lhs, ObjectError):
             return lhs
@@ -833,7 +846,7 @@ def eval_ast(node: Node, env: Environment) -> Object:
         if isinstance(rhs, ObjectError):
             return rhs
         return eval_ast_infix_expression(lhs, node.operator, rhs)
-    if isinstance(node, CallExpression):
+    if isinstance(node, AstCallExpression):
         function = eval_ast(node.function, env)
         if isinstance(function, ObjectError):
             return function
@@ -841,19 +854,19 @@ def eval_ast(node: Node, env: Environment) -> Object:
         if isinstance(args, ObjectError):
             return args
         return apply_function(function, args)
-    if isinstance(node, IfExpression):
+    if isinstance(node, AstIfExpression):
         return eval_ast_if_expression(node, env)
     raise RuntimeError(f"Unhandled AST node {type(node)}")
 
 
-def eval_ast_identifier(node: Identifier, env: Environment) -> Object:
+def eval_ast_identifier(node: AstIdentifier, env: Environment) -> Object:
     val: Optional[Object] = env.get(node.value)
     if val == None:
         return ObjectError(f"identifier not found: {node.value}")
     return val
 
 
-def eval_ast_program(node: Program, env: Environment) -> Object:
+def eval_ast_program(node: AstProgram, env: Environment) -> Object:
     result: Object = ObjectNull()
     for statement in node.statements:
         result = eval_ast(statement, env)
@@ -864,7 +877,9 @@ def eval_ast_program(node: Program, env: Environment) -> Object:
     return result
 
 
-def eval_ast_block_statement(node: BlockStatement, env: Environment) -> Object:
+def eval_ast_block_statement(
+    node: AstBlockStatement, env: Environment
+) -> Object:
     result: Object = ObjectNull()
     for statement in node.statements:
         result = eval_ast(statement, env)
@@ -939,7 +954,7 @@ def eval_ast_infix_expression(
     return ObjectError(f"type mismatch: {lhs.type} {operator} {rhs.type}")
 
 
-def eval_ast_if_expression(node: IfExpression, env: Environment) -> Object:
+def eval_ast_if_expression(node: AstIfExpression, env: Environment) -> Object:
     def is_truthy(obj: Object) -> bool:
         if isinstance(obj, ObjectNull):
             return False
@@ -958,7 +973,7 @@ def eval_ast_if_expression(node: IfExpression, env: Environment) -> Object:
 
 
 def eval_ast_expressions(
-    expressions: List[Expression], env: Environment
+    expressions: List[AstExpression], env: Environment
 ) -> Union[List[Object], ObjectError]:
     result: List[Object] = list()
     for expr in expressions:
