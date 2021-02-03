@@ -434,13 +434,6 @@ class ParserTest(unittest.TestCase):
 
 
 class EvalTest(unittest.TestCase):
-    @staticmethod
-    def eval(source: str) -> monkey.Object:
-        l = monkey.Lexer(source)
-        p = monkey.Parser(l)
-        program = p.parse_program()
-        return monkey.eval_ast(program, monkey.Environment())
-
     def check_null(self, obj: monkey.Object) -> None:
         self.assertIsInstance(obj, monkey.ObjectNull)
 
@@ -483,7 +476,7 @@ class EvalTest(unittest.TestCase):
             TestData("(5 + 10 * 2 + 15 / 3) * 2 + -10", 50),
         ]
         for test in tests:
-            evaluated = EvalTest.eval(test.source)
+            evaluated = monkey.eval_source(test.source)
             self.check_integer(evaluated, test.expected)
 
     def test_eval_boolean(self):
@@ -513,12 +506,12 @@ class EvalTest(unittest.TestCase):
             TestData("(1 > 2) == false", True),
         ]
         for test in tests:
-            evaluated = EvalTest.eval(test.source)
+            evaluated = monkey.eval_source(test.source)
             self.check_boolean(evaluated, test.expected)
 
     def test_eval_function(self):
         source = "fn(x, y) { x + y + 2; };"
-        evaluated = EvalTest.eval(source)
+        evaluated = monkey.eval_source(source)
         self.assertIsInstance(evaluated, monkey.ObjectFunction)
         self.assertEqual(len(evaluated.parameters), 2)
         self.assertEqual(str(evaluated.parameters[0]), "x")
@@ -536,7 +529,7 @@ class EvalTest(unittest.TestCase):
             TestData("!!5", True),
         ]
         for test in tests:
-            evaluated = EvalTest.eval(test.source)
+            evaluated = monkey.eval_source(test.source)
             self.check_boolean(evaluated, test.expected)
 
     def test_if_expression(self):
@@ -551,7 +544,7 @@ class EvalTest(unittest.TestCase):
             TestData("if (1 > 2) { 10 } else { 20 }", 20),
         ]
         for test in tests:
-            evaluated = EvalTest.eval(test.source)
+            evaluated = monkey.eval_source(test.source)
             self.check_result(evaluated, test.expected)
 
     def test_return_statement(self):
@@ -563,7 +556,7 @@ class EvalTest(unittest.TestCase):
             TestData("9; return 2 * 5; 9", 10),
         ]
         for test in tests:
-            evaluated = EvalTest.eval(test.source)
+            evaluated = monkey.eval_source(test.source)
             self.check_integer(evaluated, test.expected)
 
     def test_function_application(self):
@@ -579,7 +572,7 @@ class EvalTest(unittest.TestCase):
             TestData("fn(x) { x; }(5);", 5),
         ]
         for test in tests:
-            evaluated = EvalTest.eval(test.source)
+            evaluated = monkey.eval_source(test.source)
             self.check_integer(evaluated, test.expected)
 
     def test_closures(self):
@@ -592,7 +585,7 @@ class EvalTest(unittest.TestCase):
                 "addtwo(3)",
             ]
         )
-        evaluated = EvalTest.eval(source)
+        evaluated = monkey.eval_source(source)
         self.check_integer(evaluated, 5)
 
     def test_let_statement(self):
@@ -604,7 +597,7 @@ class EvalTest(unittest.TestCase):
             TestData("let a = 5; let b = a; let c = a + b + 5; c;", 15),
         ]
         for test in tests:
-            evaluated = EvalTest.eval(test.source)
+            evaluated = monkey.eval_source(test.source)
             self.check_integer(evaluated, test.expected)
 
     def test_error_handling(self):
@@ -628,7 +621,7 @@ class EvalTest(unittest.TestCase):
             TestData("foobar", "identifier not found: foobar"),
         ]
         for test in tests:
-            evaluated = EvalTest.eval(test.source)
+            evaluated = monkey.eval_source(test.source)
             self.assertIsInstance(evaluated, monkey.ObjectError)
             self.assertEqual(evaluated.what, test.expected)
 

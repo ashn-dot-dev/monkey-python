@@ -1002,6 +1002,15 @@ def apply_function(fn: Object, args: List[Object]) -> Object:
     return evaluated
 
 
+def eval_source(source: str, env: Optional[Environment] = None) -> Object:
+    lexer: Lexer = Lexer(source)
+    parser: Parser = Parser(lexer)
+    ast: AstNode = parser.parse_program()
+    if env == None:
+        env = Environment()
+    return eval_ast(ast, env)
+
+
 class REPL:
     def __init__(self):
         pass
@@ -1017,12 +1026,8 @@ class REPL:
 
     def _step(self, env: Environment) -> None:
         line = input(">> ")
-        l = Lexer(line)
-        p = Parser(l)
         try:
-            program = p.parse_program()
-            evaluated = eval_ast(program, env)
-            print(str(evaluated))
+            print(eval_source(line, env))
         except ParseError as e:
             print(e)
 
