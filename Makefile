@@ -1,7 +1,7 @@
 .POSIX:
 .PHONY: all test lint format clean
 
-all: test lint format
+all: lint test format
 
 test:
 	python3 test_monkey.py

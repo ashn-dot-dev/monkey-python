@@ -22,6 +22,7 @@ class TokenKind(enum.Enum):
     # Identifiers + literals
     IDENT = "IDENT"
     INT = "INT"
+    STRING = "STRING"
     # Operators
     ASSIGN = "="
     PLUS = "+"
@@ -35,11 +36,14 @@ class TokenKind(enum.Enum):
     NOT_EQ = "!="
     # Delimiters
     COMMA = ","
+    COLON = ":"
     SEMICOLON = ";"
     LPAREN = "("
     RPAREN = ")"
     LBRACE = "{"
     RBRACE = "}"
+    LBRACKET = "["
+    RBRACKET = "]"
     # Keywords
     FUNCTION = "FUNCTION"
     LET = "LET"
@@ -63,6 +67,8 @@ class Token:
             return f"{self.kind}({self.literal})"
         if self.kind == TokenKind.INT:
             return f"{self.kind}({self.literal})"
+        if self.kind == TokenKind.STRING:
+            return f'{self.kind}("{self.literal}")'
         return f"{self.kind}"
 
     @staticmethod
@@ -118,6 +124,8 @@ class Lexer:
             tok = self._new_token(TokenKind.LT, self.ch)
         elif self.ch == ">":
             tok = self._new_token(TokenKind.GT, self.ch)
+        elif self.ch == ":":
+            tok = self._new_token(TokenKind.COLON, self.ch)
         elif self.ch == ";":
             tok = self._new_token(TokenKind.SEMICOLON, self.ch)
         elif self.ch == ",":
@@ -130,8 +138,16 @@ class Lexer:
             tok = self._new_token(TokenKind.LBRACE, self.ch)
         elif self.ch == "}":
             tok = self._new_token(TokenKind.RBRACE, self.ch)
+        elif self.ch == "[":
+            tok = self._new_token(TokenKind.LBRACKET, self.ch)
+        elif self.ch == "]":
+            tok = self._new_token(TokenKind.RBRACKET, self.ch)
         elif self.ch == Lexer.EOF_LITERAL:
             tok = self._new_token(TokenKind.EOF, self.ch)
+        elif self.ch == '"':
+            kind = TokenKind.STRING
+            literal = self._read_string()
+            tok = self._new_token(kind, literal)
         else:
             if Lexer._is_letter(self.ch):
                 literal = self._read_identifier()
@@ -191,6 +207,16 @@ class Lexer:
         start = self.position
         while self.ch.isdigit():
             self._read_char()
+        return self.source[start : self.position]
+
+    def _read_string(self) -> str:
+        start = self.position + 1
+        while True:
+            self._read_char()
+            if self.ch == '"':
+                break
+            if self._is_eof():
+                break
         return self.source[start : self.position]
 
 
@@ -312,6 +338,37 @@ class AstBooleanLiteral(AstExpression):
         return self.token.literal
 
 
+class AstStringLiteral(AstExpression):
+    def __init__(self, token: Token, value: str) -> None:
+        self.token: Token = token
+        self.value: str = value
+
+    def __str__(self):
+        return f'"{self.token.literal}"'
+
+
+class AstArrayLiteral(AstExpression):
+    def __init__(self, token: Token, elements: List[AstExpression]) -> None:
+        self.token: Token = token
+        self.elements: List[AstExpression] = elements
+
+    def __str__(self):
+        elems = ", ".join(map(str, self.elements))
+        return f"[{elems}]"
+
+
+class AstHashLiteral(AstExpression):
+    def __init__(
+        self, token: Token, pairs: Dict[AstExpression, AstExpression]
+    ) -> None:
+        self.token: Token = token  # The "{" token
+        self.pairs: Dict[AstExpression, AstExpression] = pairs
+
+    def __str__(self):
+        pairs = ", ".join([f"{key}: {self.pairs[key]}" for key in self.pairs])
+        return f"{{{pairs}}}"
+
+
 class AstFunctionLiteral(AstExpression):
     def __init__(
         self,
@@ -355,6 +412,18 @@ class AstInfixExpression(AstExpression):
 
     def __str__(self):
         return f"({self.left} {self.operator} {self.right})"
+
+
+class AstIndexExpression(AstExpression):
+    def __init__(
+        self, token: Token, left: AstExpression, index: AstExpression
+    ) -> None:
+        self.token: Token = token  # The '[' token
+        self.left: AstExpression = left
+        self.index: AstExpression = index
+
+    def __str__(self):
+        return f"({self.left}[{self.index}])"
 
 
 class AstCallExpression(AstExpression):
@@ -401,6 +470,7 @@ class Precedence(enum.IntEnum):
     PRODUCT     = enum.auto() # *
     PREFIX      = enum.auto() # -X or !X
     CALL        = enum.auto() # myFunction(X)
+    INDEX       = enum.auto() # array[index]
     # fmt: on
 
 
@@ -435,6 +505,7 @@ class Parser:
         TokenKind.SLASH:    Precedence.PRODUCT,
         TokenKind.ASTERISK: Precedence.PRODUCT,
         TokenKind.LPAREN:   Precedence.CALL,
+        TokenKind.LBRACKET:   Precedence.INDEX,
         # fmt: on
     }
 
@@ -450,6 +521,9 @@ class Parser:
         self._register_prefix(TokenKind.INT, Parser.parse_integer_literal)
         self._register_prefix(TokenKind.TRUE, Parser.parse_boolean_literal)
         self._register_prefix(TokenKind.FALSE, Parser.parse_boolean_literal)
+        self._register_prefix(TokenKind.STRING, Parser.parse_string_literal)
+        self._register_prefix(TokenKind.LBRACKET, Parser.parse_array_literal)
+        self._register_prefix(TokenKind.LBRACE, Parser.parse_hash_literal)
         self._register_prefix(TokenKind.BANG, Parser.parse_prefix_expression)
         self._register_prefix(TokenKind.MINUS, Parser.parse_prefix_expression)
         self._register_prefix(TokenKind.LPAREN, Parser.parse_grouped_expression)
@@ -468,6 +542,7 @@ class Parser:
         self._register_infix(TokenKind.LT, Parser.parse_infix_expression)
         self._register_infix(TokenKind.GT, Parser.parse_infix_expression)
         self._register_infix(TokenKind.LPAREN, Parser.parse_call_expression)
+        self._register_infix(TokenKind.LBRACKET, Parser.parse_index_expression)
 
         # Read two tokens, so curToken and peekToken are both set.
         self._next_token()
@@ -561,6 +636,35 @@ class Parser:
         value = True if self.cur_token.kind == TokenKind.TRUE else False
         return AstBooleanLiteral(self.cur_token, value)
 
+    def parse_string_literal(self) -> AstStringLiteral:
+        assert self.cur_token.kind == TokenKind.STRING
+        return AstStringLiteral(self.cur_token, self.cur_token.literal)
+
+    def parse_array_literal(self) -> AstArrayLiteral:
+        assert self.cur_token.kind == TokenKind.LBRACKET
+        token = self.cur_token
+        elements = self.parse_expression_list(TokenKind.RBRACKET)
+        return AstArrayLiteral(token, elements)
+
+    def parse_hash_literal(self) -> AstHashLiteral:
+        assert self.cur_token.kind == TokenKind.LBRACE
+        token = self.cur_token
+        pairs: Dict[AstExpression, AstExpression] = dict()
+        while not self._peek_token_is(TokenKind.RBRACE):
+            self._next_token()
+            key = self.parse_expression(Precedence.LOWEST)
+            self._expect_peek(TokenKind.COLON)
+
+            self._next_token()
+            val = self.parse_expression(Precedence.LOWEST)
+            pairs[key] = val
+
+            if not self._peek_token_is(TokenKind.RBRACE):
+                self._expect_peek(TokenKind.COMMA)
+
+        self._expect_peek(TokenKind.RBRACE)
+        return AstHashLiteral(token, pairs)
+
     def parse_function_literal(self) -> AstFunctionLiteral:
         token = self.cur_token
         self._expect_peek(TokenKind.LPAREN)
@@ -614,16 +718,23 @@ class Parser:
         self._expect_peek(TokenKind.RPAREN)
         return exp
 
+    def parse_index_expression(self, left: AstExpression) -> AstIndexExpression:
+        token = self.cur_token
+        self._next_token()
+        index = self.parse_expression(Precedence.LOWEST)
+        self._expect_peek(TokenKind.RBRACKET)
+        return AstIndexExpression(token, left, index)
+
     def parse_call_expression(
         self, function: AstExpression
     ) -> AstCallExpression:
         token = self.cur_token
-        arguments = self.parse_call_arguments(function)
+        arguments = self.parse_expression_list(TokenKind.RPAREN)
         return AstCallExpression(token, function, arguments)
 
-    def parse_call_arguments(self, function) -> List[AstExpression]:
+    def parse_expression_list(self, end: TokenKind) -> List[AstExpression]:
         args: List[AstExpression] = []
-        if self._peek_token_is(TokenKind.RPAREN):
+        if self._peek_token_is(end):
             self._next_token()
             return args
 
@@ -634,7 +745,7 @@ class Parser:
             self._next_token()
             args.append(self.parse_expression(Precedence.LOWEST))
 
-        self._expect_peek(TokenKind.RPAREN)
+        self._expect_peek(end)
         return args
 
     def parse_if_expression(self) -> AstIfExpression:
@@ -728,6 +839,12 @@ class ObjectNull(Object):
     def __str__(self) -> str:
         return "null"
 
+    def __hash__(self) -> int:
+        return 0
+
+    def __eq__(self, othr) -> bool:
+        return isinstance(othr, ObjectNull)
+
     @property
     def type(self) -> str:
         return "NULL"
@@ -739,6 +856,14 @@ class ObjectInteger(Object):
 
     def __str__(self) -> str:
         return str(self.value)
+
+    def __hash__(self) -> int:
+        return hash(self.value)
+
+    def __eq__(self, othr) -> bool:
+        if not isinstance(othr, ObjectInteger):
+            return False
+        return self.value == othr.value
 
     @property
     def type(self) -> str:
@@ -752,9 +877,69 @@ class ObjectBoolean(Object):
     def __str__(self) -> str:
         return str(self.value).lower()
 
+    def __hash__(self) -> int:
+        return hash(self.value)
+
+    def __eq__(self, othr) -> bool:
+        if not isinstance(othr, ObjectBoolean):
+            return False
+        return self.value == othr.value
+
     @property
     def type(self) -> str:
         return "BOOLEAN"
+
+
+class ObjectString(Object):
+    def __init__(self, value: str) -> None:
+        self.value: str = value
+
+    def __str__(self) -> str:
+        return f'"{self.value}"'
+
+    def __hash__(self) -> int:
+        return hash(self.value)
+
+    def __eq__(self, othr) -> bool:
+        if not isinstance(othr, ObjectString):
+            return False
+        return self.value == othr.value
+
+    @property
+    def type(self) -> str:
+        return "STRING"
+
+
+class ObjectArray(Object):
+    def __init__(self, elements: List[Object]) -> None:
+        self.elements: List[Object] = elements
+
+    def __str__(self) -> str:
+        elems = ", ".join(map(str, self.elements))
+        return f"[{elems}]"
+
+    def __eq__(self, othr) -> bool:
+        return self is othr
+
+    @property
+    def type(self) -> str:
+        return "ARRAY"
+
+
+class ObjectHash(Object):
+    def __init__(self, pairs: Dict[Object, Object]) -> None:
+        self.pairs: Dict[Object, Object] = pairs
+
+    def __str__(self) -> str:
+        pairs = ", ".join([f"{key}: {self.pairs[key]}" for key in self.pairs])
+        return f"{{{pairs}}}"
+
+    def __eq__(self, othr) -> bool:
+        return self is othr
+
+    @property
+    def type(self) -> str:
+        return "HASH"
 
 
 class ObjectFunction(Object):
@@ -772,9 +957,122 @@ class ObjectFunction(Object):
         params = ", ".join(map(str, self.parameters))
         return f"fn({params}) {self.body} }}"
 
+    def __eq__(self, othr) -> bool:
+        return self is othr
+
     @property
     def type(self) -> str:
         return "FUNCTION"
+
+
+BuiltinFunction = Callable[[List[Object]], Object]
+
+
+class ObjectBuiltin(Object):
+    def __init__(self, fn: BuiltinFunction) -> None:
+        self.fn = fn
+
+    def __str__(self) -> str:
+        return "builtin function"
+
+    def __eq__(self, othr) -> bool:
+        return self is othr
+
+    @property
+    def type(self) -> str:
+        return "BUILTIN"
+
+
+def builtin_len(args: List[Object]) -> Object:
+    if len(args) != 1:
+        return ObjectError(
+            f"wrong number of arguments. got={len(args)}, want=1"
+        )
+    if isinstance(args[0], ObjectArray):
+        return ObjectInteger(len(args[0].elements))
+    if isinstance(args[0], ObjectString):
+        return ObjectInteger(len(args[0].value))
+    return ObjectError(f"argument to `len` not supported, got {args[0].type}")
+
+
+def builtin_first(args: List[Object]) -> Object:
+    if len(args) != 1:
+        return ObjectError(
+            f"wrong number of arguments. got={len(args)}, want=1"
+        )
+    if not isinstance(args[0], ObjectArray):
+        return ObjectError(
+            f"argument to `first` must be ARRAY, got {args[0].type}"
+        )
+
+    array: ObjectArray = args[0]
+    if len(array.elements) == 0:
+        return ObjectNull()
+    return array.elements[0]
+
+
+def builtin_last(args: List[Object]) -> Object:
+    if len(args) != 1:
+        return ObjectError(
+            f"wrong number of arguments. got={len(args)}, want=1"
+        )
+    if not isinstance(args[0], ObjectArray):
+        return ObjectError(
+            f"argument to `last` must be ARRAY, got {args[0].type}"
+        )
+
+    array: ObjectArray = args[0]
+    if len(array.elements) == 0:
+        return ObjectNull()
+    return array.elements[len(array.elements) - 1]
+
+
+def builtin_rest(args: List[Object]) -> Object:
+    if len(args) != 1:
+        return ObjectError(
+            f"wrong number of arguments. got={len(args)}, want=1"
+        )
+    if not isinstance(args[0], ObjectArray):
+        return ObjectError(
+            f"argument to `rest` must be ARRAY, got {args[0].type}"
+        )
+
+    array: ObjectArray = args[0]
+    if len(array.elements) == 0:
+        return ObjectNull()
+    return ObjectArray(array.elements[1:])
+
+
+def builtin_push(args: List[Object]) -> Object:
+    if len(args) != 2:
+        return ObjectError(
+            f"wrong number of arguments. got={len(args)}, want=2"
+        )
+    if not isinstance(args[0], ObjectArray):
+        return ObjectError(
+            f"argument to `push` must be ARRAY, got {args[0].type}"
+        )
+
+    array: ObjectArray = args[0]
+    elements = array.elements[:]
+    elements.append(args[1])
+    return ObjectArray(elements)
+
+
+def builtin_puts(args: List[Object]) -> Object:
+    for arg in args:
+        print(arg)
+    return ObjectNull()
+
+
+BUILTINS: Dict[str, ObjectBuiltin] = {
+    "len": ObjectBuiltin(builtin_len),
+    "first": ObjectBuiltin(builtin_first),
+    "last": ObjectBuiltin(builtin_last),
+    "rest": ObjectBuiltin(builtin_rest),
+    "push": ObjectBuiltin(builtin_push),
+    "puts": ObjectBuiltin(builtin_puts),
+}
 
 
 class ObjectReturnValue(Object):
@@ -829,6 +1127,15 @@ def eval_ast(node: AstNode, env: Environment) -> Object:
         return ObjectInteger(node.value)
     if isinstance(node, AstBooleanLiteral):
         return ObjectBoolean(node.value)
+    if isinstance(node, AstStringLiteral):
+        return ObjectString(node.value)
+    if isinstance(node, AstArrayLiteral):
+        elements = eval_ast_expressions(node.elements, env)
+        if isinstance(elements, ObjectError):
+            return elements
+        return ObjectArray(elements)
+    if isinstance(node, AstHashLiteral):
+        return eval_ast_hash_literal(node, env)
     if isinstance(node, AstFunctionLiteral):
         params = node.parameters
         body = node.body
@@ -846,6 +1153,14 @@ def eval_ast(node: AstNode, env: Environment) -> Object:
         if isinstance(rhs, ObjectError):
             return rhs
         return eval_ast_infix_expression(lhs, node.operator, rhs)
+    if isinstance(node, AstIndexExpression):
+        lhs = eval_ast(node.left, env)
+        if isinstance(lhs, ObjectError):
+            return lhs
+        index = eval_ast(node.index, env)
+        if isinstance(index, ObjectError):
+            return index
+        return eval_index_expression(lhs, index)
     if isinstance(node, AstCallExpression):
         function = eval_ast(node.function, env)
         if isinstance(function, ObjectError):
@@ -861,7 +1176,12 @@ def eval_ast(node: AstNode, env: Environment) -> Object:
 
 def eval_ast_identifier(node: AstIdentifier, env: Environment) -> Object:
     val: Optional[Object] = env.get(node.value)
-    return val or ObjectError(f"identifier not found: {node.value}")
+    if val != None:
+        return val
+    val = BUILTINS.get(node.value)
+    if val != None:
+        return val
+    return ObjectError(f"identifier not found: {node.value}")
 
 
 def eval_ast_program(node: AstProgram, env: Environment) -> Object:
@@ -886,6 +1206,23 @@ def eval_ast_block_statement(
         if isinstance(result, ObjectError):
             return result
     return result
+
+
+def eval_ast_hash_literal(node: AstHashLiteral, env: Environment) -> Object:
+    pairs: Dict[Object, Object] = dict()
+    for key_node in node.pairs:
+        key_obj = eval_ast(key_node, env)
+        if isinstance(key_obj, ObjectError):
+            return key_obj
+
+        val_node = node.pairs[key_node]
+        val_obj = eval_ast(val_node, env)
+        if isinstance(val_obj, ObjectError):
+            return val_obj
+
+        pairs[key_obj] = val_obj
+
+    return ObjectHash(pairs)
 
 
 def eval_ast_prefix_expression(operator: str, rhs: Object) -> Object:
@@ -945,10 +1282,21 @@ def eval_ast_infix_expression(
             f"unknown operator: {lhs.type} {operator} {rhs.type}"
         )
 
+    def eval_ast_string_infix_expression(
+        operator: str, lhs: ObjectString, rhs: ObjectString
+    ) -> Object:
+        if operator == "+":
+            return ObjectString(lhs.value + rhs.value)
+        return ObjectError(
+            f"unknown operator: {lhs.type} {operator} {rhs.type}"
+        )
+
     if isinstance(lhs, ObjectInteger) and isinstance(rhs, ObjectInteger):
         return eval_ast_integer_infix_expression(operator, lhs, rhs)
     if isinstance(lhs, ObjectBoolean) and isinstance(rhs, ObjectBoolean):
         return eval_ast_boolean_infix_expression(operator, lhs, rhs)
+    if isinstance(lhs, ObjectString) and isinstance(rhs, ObjectString):
+        return eval_ast_string_infix_expression(operator, lhs, rhs)
     return ObjectError(f"type mismatch: {lhs.type} {operator} {rhs.type}")
 
 
@@ -982,19 +1330,52 @@ def eval_ast_expressions(
     return result
 
 
-def apply_function(fn: Object, args: List[Object]) -> Object:
-    if not isinstance(fn, Object):
-        return ObjectError(f"not a function: {fn.type}")
-    fn = cast(ObjectFunction, fn)
+def eval_index_expression(obj: Object, index: Object) -> Object:
+    def eval_index_expression_array(obj: Object, index: Object) -> Object:
+        assert isinstance(obj, ObjectArray)
+        obj = cast(ObjectArray, obj)
+        if not isinstance(index, ObjectInteger):
+            return ObjectError(f"not an integer: {index.type}")
+        index = cast(ObjectInteger, index)
+        idx = index.value
+        if idx < 0 or idx >= len(obj.elements):
+            return ObjectNull()
+        return obj.elements[idx]
 
+    def eval_index_expression_hash(obj: Object, index: Object) -> Object:
+        assert isinstance(obj, ObjectHash)
+        obj = cast(ObjectHash, obj)
+        try:
+            return obj.pairs[index]
+        except TypeError:
+            return ObjectError(f"unusable as hash key: {index.type}")
+        except KeyError:
+            return ObjectNull()
+
+    if isinstance(obj, ObjectArray):
+        return eval_index_expression_array(obj, index)
+    if isinstance(obj, ObjectHash):
+        return eval_index_expression_hash(obj, index)
+    return ObjectError(f"index operator not supported: {obj.type}")
+
+
+def apply_function(fn: Object, args: List[Object]) -> Object:
     def extend_env(fn: ObjectFunction, args: List[Object]) -> Environment:
         env = Environment(fn.env)
         for i in range(len(fn.parameters)):
             env.set(fn.parameters[i].value, args[i])
         return env
 
-    env = extend_env(fn, args)
-    evaluated = eval_ast(fn.body, env)
+    if isinstance(fn, ObjectFunction):
+        fn = cast(ObjectFunction, fn)
+        env = extend_env(fn, args)
+        evaluated = eval_ast(fn.body, env)
+    elif isinstance(fn, ObjectBuiltin):
+        fn = cast(ObjectBuiltin, fn)
+        return fn.fn(args)
+    else:
+        return ObjectError(f"not a function: {fn.type}")
+
     if isinstance(evaluated, ObjectReturnValue):
         return evaluated.value
     return evaluated

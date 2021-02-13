@@ -20,3 +20,6 @@ interpreter.
 `evaluator.Eval` when passed an `ast.LetStatement`. Returning `nil` from a
 function that should always return an `object.Object` violates type safety, so
 this interpreter chooses to instead return a null object.
++ The interpreter in the book creates a struct, `HashKey`, for holding the keys of
+a hash data type. Rather than define a separate type, this interpreter uses
+Python's builtin `__hash__` and `__eq__` methods for hash key comparison.

@@ -22,6 +22,11 @@ class LexerTest(unittest.TestCase):
                 "if (5 < 10) { return true; } else { return false; }",
                 "10 == 10",
                 "10 != 9",
+                '"foobar"',
+                '"foo bar"',
+                '""',
+                "[1, 2];",
+                '{"foo": "bar"}',
             ]
         )
         TestData = collections.namedtuple("TestData", ["kind", "literal"])
@@ -104,6 +109,25 @@ class LexerTest(unittest.TestCase):
             TestData(monkey.TokenKind.NOT_EQ, "!="),
             TestData(monkey.TokenKind.INT, "9"),
             #
+            TestData(monkey.TokenKind.STRING, "foobar"),
+            #
+            TestData(monkey.TokenKind.STRING, "foo bar"),
+            #
+            TestData(monkey.TokenKind.STRING, ""),
+            #
+            TestData(monkey.TokenKind.LBRACKET, "["),
+            TestData(monkey.TokenKind.INT, "1"),
+            TestData(monkey.TokenKind.COMMA, ","),
+            TestData(monkey.TokenKind.INT, "2"),
+            TestData(monkey.TokenKind.RBRACKET, "]"),
+            TestData(monkey.TokenKind.SEMICOLON, ";"),
+            #
+            TestData(monkey.TokenKind.LBRACE, "{"),
+            TestData(monkey.TokenKind.STRING, "foo"),
+            TestData(monkey.TokenKind.COLON, ":"),
+            TestData(monkey.TokenKind.STRING, "bar"),
+            TestData(monkey.TokenKind.RBRACE, "}"),
+            #
             TestData(monkey.TokenKind.EOF, ""),
         ]
 
@@ -125,15 +149,20 @@ class AstTest(unittest.TestCase):
 
 
 class ParserTest(unittest.TestCase):
-    def check_integer_literal(self, expr, value):
+    def check_integer_literal(self, expr, value: int):
         self.assertIsInstance(expr, monkey.AstIntegerLiteral)
         self.assertEqual(expr.value, value)
         self.assertEqual(expr.token_literal(), str(value))
 
-    def check_boolean_literal(self, expr, value):
+    def check_boolean_literal(self, expr, value: bool):
         self.assertIsInstance(expr, monkey.AstBooleanLiteral)
         self.assertEqual(expr.value, value)
         self.assertEqual(expr.token_literal(), str(value).lower())
+
+    def check_string_literal(self, expr, value: str):
+        self.assertIsInstance(expr, monkey.AstStringLiteral)
+        self.assertEqual(expr.value, value)
+        self.assertEqual(expr.token_literal(), value)
 
     def check_identifier(self, expr, value):
         self.assertIsInstance(expr, monkey.AstIdentifier)
@@ -158,6 +187,9 @@ class ParserTest(unittest.TestCase):
         self.check_literal_expression(expr.right, right)
 
     def check_literal_expression(self, expr, value):
+        # TODO: The str type is used for identifiers right now instead of the
+        # actual string type in the Monkey language. Find a way to harmonize
+        # these.
         t = type(value)
         if t == int:
             return self.check_integer_literal(expr, value)
@@ -227,17 +259,76 @@ class ParserTest(unittest.TestCase):
             self.check_literal_expression(stmt.return_value, expected[i].value)
 
     def test_integer_literal(self):
-        statements = ["5;"]
-
-        source = "\n".join(statements)
+        source = "5;"
         l = monkey.Lexer(source)
         p = monkey.Parser(l)
         program = p.parse_program()
-        self.assertEqual(len(program.statements), len(statements))
+        self.assertEqual(len(program.statements), 1)
 
         stmt = program.statements[0]
         self.assertIsInstance(stmt, monkey.AstExpressionStatement)
         self.check_integer_literal(stmt.expression, 5)
+
+    def test_string_literal(self):
+        source = '"hello world"'
+        l = monkey.Lexer(source)
+        p = monkey.Parser(l)
+        program = p.parse_program()
+        self.assertEqual(len(program.statements), 1)
+
+        stmt = program.statements[0]
+        self.assertIsInstance(stmt, monkey.AstExpressionStatement)
+        self.check_string_literal(stmt.expression, "hello world")
+
+    def test_array_literal(self):
+        source = "[1, 2 * 2, 3 + 3]"
+        l = monkey.Lexer(source)
+        p = monkey.Parser(l)
+        program = p.parse_program()
+        self.assertEqual(len(program.statements), 1)
+
+        stmt = program.statements[0]
+        self.assertIsInstance(stmt, monkey.AstExpressionStatement)
+
+        expr = stmt.expression
+        self.assertIsInstance(expr, monkey.AstArrayLiteral)
+        self.check_integer_literal(expr.elements[0], 1)
+        self.check_simple_infix_expression(expr.elements[1], 2, "*", 2)
+        self.check_simple_infix_expression(expr.elements[2], 3, "+", 3)
+
+    def test_hash_literal_string_keys(self):
+        source = '{"one": 1, "two": 2, "three": 3}'
+        l = monkey.Lexer(source)
+        p = monkey.Parser(l)
+        program = p.parse_program()
+        self.assertEqual(len(program.statements), 1)
+
+        stmt = program.statements[0]
+        self.assertIsInstance(stmt, monkey.AstExpressionStatement)
+
+        expr = stmt.expression
+        self.assertIsInstance(expr, monkey.AstHashLiteral)
+        self.assertEqual(len(expr.pairs), 3)
+        expected = [("one", 1), ("two", 2), ("three", 3)]
+        count: int = 0
+        for key in expr.pairs:
+            self.check_string_literal(key, expected[count][0])
+            self.check_integer_literal(expr.pairs[key], expected[count][1])
+            count = count + 1
+
+    def test_hash_literal_empty(self):
+        source = "{}"
+        l = monkey.Lexer(source)
+        p = monkey.Parser(l)
+        program = p.parse_program()
+        self.assertEqual(len(program.statements), 1)
+
+        stmt = program.statements[0]
+        self.assertIsInstance(stmt, monkey.AstExpressionStatement)
+
+        expr = stmt.expression
+        self.assertIsInstance(expr, monkey.AstHashLiteral)
+        self.assertEqual(len(expr.pairs), 0)
 
     def test_function_literal(self):
         source = "fn(x, y) { x + y; }"
@@ -380,6 +471,14 @@ class ParserTest(unittest.TestCase):
                 "add(a + b + c * d / f + g)",
                 "add((((a + b) + ((c * d) / f)) + g))",
             ),
+            TestData(
+                "a * [1, 2, 3, 4][b * c] * d",
+                "((a * ([1, 2, 3, 4][(b * c)])) * d)",
+            ),
+            TestData(
+                "add(a * b[2], b[1], 2 * [1, 2][1])",
+                "add((a * (b[2])), (b[1]), (2 * ([1, 2][1])))",
+            ),
         ]
 
         for test in tests:
@@ -387,6 +486,21 @@ class ParserTest(unittest.TestCase):
             p = monkey.Parser(l)
             program = p.parse_program()
             self.assertEqual(str(program), test.expected)
+
+    def test_index_expression(self):
+        source = "myarray[1 + 1]"
+        l = monkey.Lexer(source)
+        p = monkey.Parser(l)
+        program = p.parse_program()
+        self.assertEqual(len(program.statements), 1)
+
+        stmt = program.statements[0]
+        self.assertIsInstance(stmt, monkey.AstExpressionStatement)
+
+        expr = stmt.expression
+        self.assertIsInstance(expr, monkey.AstIndexExpression)
+        self.check_identifier(expr.left, "myarray")
+        self.check_simple_infix_expression(expr.index, 1, "+", 1)
 
     def test_call_expression(self):
         source = "add(1, 2 * 3, 4 + 5)"
@@ -445,6 +559,12 @@ class EvalTest(unittest.TestCase):
         self.assertIsInstance(obj, monkey.ObjectBoolean)
         self.assertEqual(typing.cast(monkey.ObjectBoolean, obj).value, expected)
 
+    def check_string(self, obj: monkey.Object, expected: str) -> None:
+        self.assertIsInstance(obj, monkey.ObjectString)
+        self.assertEqual(typing.cast(monkey.ObjectString, obj).value, expected)
+
+    # TODO: Maybe name this better since ObjectReturnValue is a type which might
+    # get confused with 'result'.
     def check_result(
         self, obj: monkey.Object, expected: typing.Union[None, int, bool]
     ) -> None:
@@ -509,6 +629,57 @@ class EvalTest(unittest.TestCase):
             evaluated = monkey.eval_source(test.source)
             self.check_boolean(evaluated, test.expected)
 
+    def test_eval_string(self):
+        TestData = collections.namedtuple("TestData", ["source", "expected"])
+        tests = [
+            TestData('"foo"', "foo"),
+            TestData('"foo bar"', "foo bar"),
+        ]
+        for test in tests:
+            evaluated = monkey.eval_source(test.source)
+            self.check_string(evaluated, test.expected)
+
+    def test_eval_array(self):
+        source = "[1, 2 * 2, 3 + 3]"
+        evaluated = monkey.eval_source(source)
+        self.assertIsInstance(evaluated, monkey.ObjectArray)
+        self.assertEqual(len(evaluated.elements), 3)
+        self.check_integer(evaluated.elements[0], 1)
+        self.check_integer(evaluated.elements[1], 4)
+        self.check_integer(evaluated.elements[2], 6)
+
+    def test_eval_hash(self):
+        source = "\n".join(
+            [
+                'let two = "two";',
+                "{"
+                '  "one": 10 - 9,'
+                "  two: 1 + 1,"
+                '  "thr" + "ee": 6 / 2,'
+                "  4: 4,"
+                "  true: 5,"
+                "  false: 6,"
+                "}",
+            ]
+        )
+        evaluated = monkey.eval_source(source)
+        self.assertIsInstance(evaluated, monkey.ObjectHash)
+        self.assertEqual(len(evaluated.pairs), 6)
+        keys = list(evaluated.pairs.keys())
+        vals = list(evaluated.pairs.values())
+        self.assertEqual(keys[0], monkey.ObjectString("one"))
+        self.assertEqual(vals[0], monkey.ObjectInteger(1))
+        self.assertEqual(keys[1], monkey.ObjectString("two"))
+        self.assertEqual(vals[1], monkey.ObjectInteger(2))
+        self.assertEqual(keys[2], monkey.ObjectString("three"))
+        self.assertEqual(vals[2], monkey.ObjectInteger(3))
+        self.assertEqual(keys[3], monkey.ObjectInteger(4))
+        self.assertEqual(vals[3], monkey.ObjectInteger(4))
+        self.assertEqual(keys[4], monkey.ObjectBoolean(True))
+        self.assertEqual(vals[4], monkey.ObjectInteger(5))
+        self.assertEqual(keys[5], monkey.ObjectBoolean(False))
+        self.assertEqual(vals[5], monkey.ObjectInteger(6))
+
     def test_eval_function(self):
         source = "fn(x, y) { x + y + 2; };"
         evaluated = monkey.eval_source(source)
@@ -559,6 +730,44 @@ class EvalTest(unittest.TestCase):
             evaluated = monkey.eval_source(test.source)
             self.check_integer(evaluated, test.expected)
 
+    def test_array_index_expressions(self):
+        TestData = collections.namedtuple("TestData", ["source", "expected"])
+        tests = [
+            TestData("[1, 2, 3][0]", 1),
+            TestData("[1, 2, 3][1]", 2),
+            TestData("[1, 2, 3][2]", 3),
+            TestData("let i = 0; [1][i];", 1),
+            TestData("[1, 2, 3][1 + 1];", 3),
+            TestData("let myarray = [1, 2, 3]; myarray[2];", 3),
+            TestData(
+                "let myarray = [1, 2, 3]; myarray[0] + myarray[1] + myarray[2];",
+                6,
+            ),
+            TestData(
+                "let myarray = [1, 2, 3]; let i = myarray[0]; myarray[i];", 2
+            ),
+            TestData("[1, 2, 3][3]", None),
+            TestData("[1, 2, 3][-1]", None),
+        ]
+        for test in tests:
+            evaluated = monkey.eval_source(test.source)
+            self.check_result(evaluated, test.expected)
+
+    def test_hash_index_expressions(self):
+        TestData = collections.namedtuple("TestData", ["source", "expected"])
+        tests = [
+            TestData('{"foo": 5}["foo"]', 5),
+            TestData('{"foo": 5}["bar"]', None),
+            TestData('let key = "foo"; {"foo": 5}[key]', 5),
+            TestData('{}["foo"]', None),
+            TestData("{5: 5}[5]", 5),
+            TestData("{true: 5}[true]", 5),
+            TestData("{false: 5}[false]", 5),
+        ]
+        for test in tests:
+            evaluated = monkey.eval_source(test.source)
+            self.check_result(evaluated, test.expected)
+
     def test_function_application(self):
         TestData = collections.namedtuple("TestData", ["source", "expected"])
         tests = [
@@ -587,6 +796,59 @@ class EvalTest(unittest.TestCase):
         )
         evaluated = monkey.eval_source(source)
         self.check_integer(evaluated, 5)
+
+    def test_builtin_functions(self):
+        TestData = collections.namedtuple("TestData", ["source", "expected"])
+        tests = [
+            TestData('len("")', 0),
+            TestData('len("four")', 4),
+            TestData('len("hello world")', 11),
+            TestData("len(1)", "argument to `len` not supported, got INTEGER"),
+            TestData(
+                'len("one", "two")', "wrong number of arguments. got=2, want=1"
+            ),
+            TestData("len([1, 2, 3])", 3),
+            TestData("len([])", 0),
+            TestData("first([1, 2, 3])", 1),
+            TestData("first([])", None),
+            TestData(
+                "first(1)", "argument to `first` must be ARRAY, got INTEGER"
+            ),
+            TestData("first(1, 2)", "wrong number of arguments. got=2, want=1"),
+            TestData("last([1, 2, 3])", 3),
+            TestData("last([])", None),
+            TestData(
+                "last(1)", "argument to `last` must be ARRAY, got INTEGER"
+            ),
+            TestData("last(1, 2)", "wrong number of arguments. got=2, want=1"),
+            TestData("rest([1, 2, 3])", [2, 3]),
+            TestData("rest([])", None),
+            TestData(
+                "rest(1)", "argument to `rest` must be ARRAY, got INTEGER"
+            ),
+            TestData("rest(1, 2)", "wrong number of arguments. got=2, want=1"),
+            TestData("push([], 1)", [1]),
+            TestData("push([1], 2)", [1, 2]),
+            TestData(
+                "push(1, 2)", "argument to `push` must be ARRAY, got INTEGER"
+            ),
+            TestData("push(1)", "wrong number of arguments. got=1, want=2"),
+        ]
+        for test in tests:
+            # TODO: These branches are a disorganized mess and could use some
+            # cleanup.
+            evaluated = monkey.eval_source(test.source)
+            if isinstance(evaluated, monkey.ObjectInteger):
+                self.check_integer(evaluated, test.expected)
+            elif isinstance(evaluated, monkey.ObjectError):
+                self.assertEqual(str(evaluated), test.expected)
+            elif isinstance(evaluated, monkey.ObjectNull):
+                self.assertEqual(test.expected, None)
+            elif isinstance(evaluated, monkey.ObjectArray):
+                for i in range(len(evaluated.elements)):
+                    self.check_integer(evaluated.elements[i], test.expected[i])
+            else:
+                self.fail(f"Invalid type {type(evaluated)}")
 
     def test_let_statement(self):
         TestData = collections.namedtuple("TestData", ["source", "expected"])
@@ -618,7 +880,11 @@ class EvalTest(unittest.TestCase):
                 "if (true) { if (true) { true + false } }",
                 "unknown operator: BOOLEAN + BOOLEAN",
             ),
+            TestData('"foo" - "bar"', "unknown operator: STRING - STRING",),
             TestData("foobar", "identifier not found: foobar"),
+            TestData(
+                '{"name": "Monkey"}[fn(x){x}]', "unusable as hash key: FUNCTION"
+            ),
         ]
         for test in tests:
             evaluated = monkey.eval_source(test.source)
