@@ -546,6 +546,19 @@ class ParserTest(unittest.TestCase):
                     expr.alternative.statements[0].expression, "y"
                 )
 
+    def test_parse_error(self):
+        TestData = collections.namedtuple("TestData", ["source", "expected"])
+        tests = [
+            TestData("fn(", "[line 1] Expected token ), found EOF"),
+        ]
+        for test in tests:
+            l = monkey.Lexer(test.source)
+            p = monkey.Parser(l)
+            try:
+                p.parse_program()
+            except monkey.ParseError as e:
+                self.assertEqual(str(e), test.expected)
+
 
 class EvalTest(unittest.TestCase):
     def check_null(self, obj: monkey.Object) -> None:

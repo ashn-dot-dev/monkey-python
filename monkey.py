@@ -79,7 +79,7 @@ class Token:
             return f"{self.kind}({self.literal})"
         if self.kind == TokenKind.STRING:
             return f'{self.kind}("{self.literal}")'
-        return f"{self.kind}"
+        return f"{self.kind.value}"
 
     @staticmethod
     def lookup_ident(ident: str) -> TokenKind:
@@ -789,7 +789,7 @@ class Parser:
     def _expect_peek(self, kind) -> None:
         if not self._peek_token_is(kind):
             tok = self.peek_token
-            msg = f"Expected token {kind}, found {tok}"
+            msg = f"Expected token {kind.value}, found {tok}"
             raise ParseError(tok, msg)
         self._next_token()
 
