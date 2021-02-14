@@ -55,6 +55,16 @@ class TokenKind(enum.Enum):
 
 
 class Token:
+    KEYWORDS = {
+        "fn": TokenKind.FUNCTION,
+        "let": TokenKind.LET,
+        "true": TokenKind.TRUE,
+        "false": TokenKind.FALSE,
+        "if": TokenKind.IF,
+        "else": TokenKind.ELSE,
+        "return": TokenKind.RETURN,
+    }
+
     def __init__(
         self, kind: TokenKind, literal: str, source_location: SourceLocation
     ) -> None:
@@ -73,16 +83,7 @@ class Token:
 
     @staticmethod
     def lookup_ident(ident: str) -> TokenKind:
-        keywords = {
-            "fn": TokenKind.FUNCTION,
-            "let": TokenKind.LET,
-            "true": TokenKind.TRUE,
-            "false": TokenKind.FALSE,
-            "if": TokenKind.IF,
-            "else": TokenKind.ELSE,
-            "return": TokenKind.RETURN,
-        }
-        return keywords.get(ident, TokenKind.IDENT)
+        return Token.KEYWORDS.get(ident, TokenKind.IDENT)
 
 
 class Lexer:
