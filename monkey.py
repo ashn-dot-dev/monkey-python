@@ -506,7 +506,7 @@ class Parser:
         TokenKind.SLASH:    Precedence.PRODUCT,
         TokenKind.ASTERISK: Precedence.PRODUCT,
         TokenKind.LPAREN:   Precedence.CALL,
-        TokenKind.LBRACKET:   Precedence.INDEX,
+        TokenKind.LBRACKET: Precedence.INDEX,
         # fmt: on
     }
 
