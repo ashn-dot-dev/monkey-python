@@ -53,6 +53,9 @@ class TokenKind(enum.Enum):
     ELSE = "ELSE"
     RETURN = "RETURN"
 
+    def __str__(self) -> str:
+        return self.value
+
 
 class Token:
     KEYWORDS = {
@@ -78,7 +81,9 @@ class Token:
         if self.kind == TokenKind.INT:
             return f"{self.kind}({self.literal})"
         if self.kind == TokenKind.STRING:
-            return f'{self.kind}("{self.literal}")'
+            return f"{self.kind}({self.literal})"
+        if self.kind.value in Token.KEYWORDS:
+            return self.kind.value
         return f"{self.kind.value}"
 
     @staticmethod

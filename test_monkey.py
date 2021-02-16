@@ -7,6 +7,26 @@ import unittest
 import monkey
 
 
+class TokenTest(unittest.TestCase):
+    def test_ident(self):
+        tok = monkey.Token(
+            monkey.TokenKind.IDENT, "foo", monkey.SourceLocation(None, 42)
+        )
+        self.assertEqual(str(tok), "IDENT(foo)")
+
+    def test_integer(self):
+        tok = monkey.Token(
+            monkey.TokenKind.INT, "123", monkey.SourceLocation(None, 42)
+        )
+        self.assertEqual(str(tok), "INT(123)")
+
+    def test_string(self):
+        tok = monkey.Token(
+            monkey.TokenKind.STRING, '"foo"', monkey.SourceLocation(None, 42)
+        )
+        self.assertEqual(str(tok), 'STRING("foo")')
+
+
 class LexerTest(unittest.TestCase):
     def test_next_token(self):
         source = "\n".join(
