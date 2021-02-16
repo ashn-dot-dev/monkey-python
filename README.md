@@ -3,6 +3,17 @@ Python 3 implementation of the interpreter for the Monkey language from Thorsten
 Ball's [Writing an Interpreter in Go](https://interpreterbook.com/).
 
 ## Notable Implementation Deviations from the Book
++ The interpreter in the book does not track the locations of tokens within
+source code. This interpreter tracks the line number (as delimited by the ASCII
+line feed \n) of tokens in via a `SourceLocation` data structure and uses that
+line number when reporting parse errors:
+    ```
+    $ cat examples/parse-error.monkey
+    let add = fn(x, y) { x + y }
+    add(1, $)
+    $ ./monkey.py examples/parse-error.monkey
+    [examples/parse-error.monkey, line 2] Expected expression, found ILLEGAL
+    ```
 + The interpreter in the book uses the type `int64` for the `Value` field of the
 `IntegerLiteral` struct. This interpreter uses Python's builtin arbitrary
 precision `int` type to represent the value of integers.

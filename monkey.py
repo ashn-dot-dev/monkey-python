@@ -3,6 +3,7 @@
 import argparse
 import enum
 import os
+import sys
 from typing import Callable, Dict, List, Optional, Union, cast
 
 
@@ -1441,14 +1442,20 @@ class REPL:
         except ParseError as e:
             print(e)
 
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="The Monkey programming language"
-    )
+def main():
+    description = "The Monkey programming language"
+    parser = argparse.ArgumentParser(description=description)
     parser.add_argument("file", type=str, nargs="?", default=None)
     args = parser.parse_args()
+
     if args.file != None:
-        eval_file(args.file)
+        try:
+            eval_file(args.file)
+        except ParseError as e:
+            print(e, file=sys.stderr)
     else:
         REPL().run()
+
+
+if __name__ == "__main__":
+    main()
