@@ -69,11 +69,14 @@ class Token:
     }
 
     def __init__(
-        self, kind: TokenKind, literal: str, source_location: SourceLocation
+        self,
+        kind: TokenKind,
+        literal: str,
+        source_location: Optional[SourceLocation] = None,
     ) -> None:
-        self.kind = kind
-        self.literal = literal
-        self.source_location = source_location
+        self.kind: TokenKind = kind
+        self.literal: str = literal
+        self.source_location: Optional[SourceLocation] = source_location
 
     def __str__(self) -> str:
         if self.kind == TokenKind.IDENT:
@@ -232,6 +235,8 @@ class ParseError(Exception):
         self.why = why
 
     def __str__(self) -> str:
+        if self.tok.source_location == None:
+            return f"{self.why}"
         return f"[{self.tok.source_location}] {self.why}"
 
 
