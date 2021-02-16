@@ -563,7 +563,7 @@ class ParserTest(unittest.TestCase):
     def test_parse_error(self):
         TestData = collections.namedtuple("TestData", ["source", "expected"])
         tests = [
-            TestData("fn(", "[line 1] Expected token ), found EOF"),
+            TestData("fn(", "Expected token ), found EOF"),
         ]
         for test in tests:
             l = monkey.Lexer(test.source)

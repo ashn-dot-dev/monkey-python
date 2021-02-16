@@ -97,10 +97,14 @@ class Token:
 class Lexer:
     EOF_LITERAL = ""
 
-    def __init__(self, source: str, filename: Optional[str] = None) -> None:
+    def __init__(
+        self, source: str, initial_location: Optional[SourceLocation] = None
+    ) -> None:
         self.source: str = source
-        self.source_filename: Optional[str] = filename
-        self.source_line: int = 1
+        # vvv What position does the source "start" being parsed from.
+        #     None if the source is being lexed in a location-independent
+        #     manner.
+        self.location: Optional[SourceLocation] = initial_location
         self.position: int = 0
         self.read_position: int = 0
         self.ch: Optional[str] = None
@@ -177,11 +181,10 @@ class Lexer:
         return ch.isalpha() or ch == "_"
 
     def _new_token(self, kind: TokenKind, literal: str) -> Token:
-        return Token(
-            kind,
-            literal,
-            SourceLocation(self.source_filename, self.source_line),
-        )
+        loc: SourceLocation = None
+        if self.location != None:
+            loc = SourceLocation(self.location.filename, self.location.line)
+        return Token(kind, literal, loc)
 
     def _skip_whitespace(self) -> None:
         while self.ch.isspace():
@@ -194,7 +197,8 @@ class Lexer:
         if self._is_eof():
             self.ch = Lexer.EOF_LITERAL
         else:
-            self.source_line += self.ch == "\n"
+            if self.location != None:
+                self.location.line += self.ch == "\n"
             self.ch = self.source[self.read_position]
         self.position = self.read_position
         self.read_position += 1
