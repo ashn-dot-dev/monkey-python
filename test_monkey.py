@@ -8,6 +8,10 @@ import monkey
 
 
 class TokenTest(unittest.TestCase):
+    def test_illegal(self):
+        tok = monkey.Token(monkey.TokenKind.ILLEGAL, "^",)
+        self.assertEqual(str(tok), "ILLEGAL(^)")
+
     def test_ident(self):
         tok = monkey.Token(monkey.TokenKind.IDENT, "foo",)
         self.assertEqual(str(tok), "IDENT(foo)")

@@ -12,7 +12,7 @@ line number when reporting parse errors:
     let add = fn(x, y) { x + y }
     add(1, $)
     $ ./monkey.py examples/parse-error.monkey
-    [examples/parse-error.monkey, line 2] Expected expression, found ILLEGAL
+    [examples/parse-error.monkey, line 2] Expected expression, found ILLEGAL($)
     ```
 + The interpreter in the book uses the type `int64` for the `Value` field of the
 `IntegerLiteral` struct. This interpreter uses Python's builtin arbitrary

@@ -82,6 +82,8 @@ class Token:
         self.source_location: Optional[SourceLocation] = source_location
 
     def __str__(self) -> str:
+        if self.kind == TokenKind.ILLEGAL:
+            return f"{self.kind}({self.literal})"
         if self.kind == TokenKind.IDENT:
             return f"{self.kind}({self.literal})"
         if self.kind == TokenKind.INT:
@@ -1441,6 +1443,7 @@ class REPL:
             print(eval_source(line, env))
         except ParseError as e:
             print(e)
+
 
 def main():
     description = "The Monkey programming language"
