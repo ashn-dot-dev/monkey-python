@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
+import argparse
 import enum
+import os
 from typing import Callable, Dict, List, Optional, Union, cast
 
 
@@ -1076,7 +1078,11 @@ def builtin_push(args: List[Object]) -> Object:
 
 def builtin_puts(args: List[Object]) -> Object:
     for arg in args:
-        print(arg)
+        if isinstance(arg, ObjectString):
+            # Print the string without "quotes".
+            print(arg.value)
+        else:
+            print(arg)
     return ObjectNull()
 
 
@@ -1396,11 +1402,23 @@ def apply_function(fn: Object, args: List[Object]) -> Object:
     return evaluated
 
 
-def eval_source(source: str, env: Optional[Environment] = None) -> Object:
-    lexer: Lexer = Lexer(source)
+def eval_source(
+    source: str,
+    env: Optional[Environment] = None,
+    loc: Optional[SourceLocation] = None,
+) -> Object:
+    lexer: Lexer = Lexer(source, loc)
     parser: Parser = Parser(lexer)
     ast: AstNode = parser.parse_program()
     return eval_ast(ast, env or Environment())
+
+
+def eval_file(
+    path: Union[str, os.PathLike], env: Optional[Environment] = None,
+) -> Object:
+    with open(path, "r") as f:
+        source = f.read()
+    return eval_source(source, env, SourceLocation(str(path), 1))
 
 
 class REPL:
@@ -1425,4 +1443,12 @@ class REPL:
 
 
 if __name__ == "__main__":
-    REPL().run()
+    parser = argparse.ArgumentParser(
+        description="The Monkey programming language"
+    )
+    parser.add_argument("file", type=str, nargs="?", default=None)
+    args = parser.parse_args()
+    if args.file != None:
+        eval_file(args.file)
+    else:
+        REPL().run()
