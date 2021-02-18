@@ -9,19 +9,19 @@ import monkey
 
 class TokenTest(unittest.TestCase):
     def test_illegal(self):
-        tok = monkey.Token(monkey.TokenKind.ILLEGAL, "^",)
+        tok = monkey.Token(monkey.TokenKind.ILLEGAL, "^")
         self.assertEqual(str(tok), "ILLEGAL(^)")
 
     def test_ident(self):
-        tok = monkey.Token(monkey.TokenKind.IDENT, "foo",)
+        tok = monkey.Token(monkey.TokenKind.IDENT, "foo")
         self.assertEqual(str(tok), "IDENT(foo)")
 
     def test_integer(self):
-        tok = monkey.Token(monkey.TokenKind.INT, "123",)
+        tok = monkey.Token(monkey.TokenKind.INT, "123")
         self.assertEqual(str(tok), "INT(123)")
 
     def test_string(self):
-        tok = monkey.Token(monkey.TokenKind.STRING, '"foo"',)
+        tok = monkey.Token(monkey.TokenKind.STRING, '"foo"')
         self.assertEqual(str(tok), 'STRING("foo")')
 
 
@@ -415,7 +415,7 @@ class ParserTest(unittest.TestCase):
             stmt = program.statements[0]
             self.assertIsInstance(stmt, monkey.AstExpressionStatement)
             self.check_simple_prefix_expression(
-                stmt.expression, test.operator, test.right_value,
+                stmt.expression, test.operator, test.right_value
             )
 
     def test_parsing_infix_expressions(self):
@@ -566,9 +566,7 @@ class ParserTest(unittest.TestCase):
 
     def test_parse_error(self):
         TestData = collections.namedtuple("TestData", ["source", "expected"])
-        tests = [
-            TestData("fn(", "Expected token ), found EOF"),
-        ]
+        tests = [TestData("fn(", "Expected token ), found EOF")]
         for test in tests:
             l = monkey.Lexer(test.source)
             p = monkey.Parser(l)
@@ -662,10 +660,7 @@ class EvalTest(unittest.TestCase):
 
     def test_eval_string(self):
         TestData = collections.namedtuple("TestData", ["source", "expected"])
-        tests = [
-            TestData('"foo"', "foo"),
-            TestData('"foo bar"', "foo bar"),
-        ]
+        tests = [TestData('"foo"', "foo"), TestData('"foo bar"', "foo bar")]
         for test in tests:
             evaluated = monkey.eval_source(test.source)
             self.check_string(evaluated, test.expected)
@@ -911,7 +906,7 @@ class EvalTest(unittest.TestCase):
                 "if (true) { if (true) { true + false } }",
                 "unknown operator: BOOLEAN + BOOLEAN",
             ),
-            TestData('"foo" - "bar"', "unknown operator: STRING - STRING",),
+            TestData('"foo" - "bar"', "unknown operator: STRING - STRING"),
             TestData("foobar", "identifier not found: foobar"),
             TestData(
                 '{"name": "Monkey"}[fn(x){x}]', "unusable as hash key: FUNCTION"

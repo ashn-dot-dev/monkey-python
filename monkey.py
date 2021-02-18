@@ -112,7 +112,7 @@ class Lexer:
         self.location: Optional[SourceLocation] = initial_location
         self.position: int = 0
         self.read_position: int = 0
-        self.ch: Optional[str] = None
+        self.ch: str = "\0"
         self._read_char()
 
     def next_token(self) -> Token:
@@ -186,10 +186,7 @@ class Lexer:
         return ch.isalpha() or ch == "_"
 
     def _new_token(self, kind: TokenKind, literal: str) -> Token:
-        loc: SourceLocation = None
-        if self.location != None:
-            loc = SourceLocation(self.location.filename, self.location.line)
-        return Token(kind, literal, loc)
+        return Token(kind, literal, self.location)
 
     def _skip_whitespace(self) -> None:
         while self.ch.isspace():
@@ -202,7 +199,7 @@ class Lexer:
         if self._is_eof():
             self.ch = Lexer.EOF_LITERAL
         else:
-            if self.location != None:
+            if self.location is not None:
                 self.location.line += self.ch == "\n"
             self.ch = self.source[self.read_position]
         self.position = self.read_position
@@ -473,7 +470,7 @@ class AstIfExpression(AstExpression):
         self.token: Token = token  # The "if" token
         self.condition: AstExpression = condition
         self.consequence: AstBlockStatement = consequence
-        self.alternative: AstBlockStatement = alternative
+        self.alternative: Optional[AstBlockStatement] = alternative
 
     def __str__(self) -> str:
         consequencestr = f"if {self.condition} {self.consequence}"
@@ -531,8 +528,8 @@ class Parser:
 
     def __init__(self, lexer: Lexer) -> None:
         self.lexer: Lexer = lexer
-        self.cur_token: Optional[Token] = None
-        self.peek_token: Optional[Token] = None
+        self.cur_token: Token = Token(TokenKind.ILLEGAL, "ILLEGAL")
+        self.peek_token: Token = Token(TokenKind.ILLEGAL, "ILLEGAL")
 
         self.prefix_parse_fns: Dict[
             TokenKind, Parser.PrefixParseFunction
@@ -627,14 +624,14 @@ class Parser:
 
     def parse_expression(self, precedence: "Precedence") -> AstExpression:
         prefix = self.prefix_parse_fns.get(self.cur_token.kind)
-        if prefix == None:
+        if prefix is None:
             tok = self.cur_token
             msg = f"Expected expression, found {tok}"
             raise ParseError(tok, msg)
         left_exp = prefix(self)
         while precedence < self._peek_precedence():
             infix = self.infix_parse_fns.get(self.peek_token.kind, None)
-            if infix == None:
+            if infix is None:
                 return left_exp
             self._next_token()
             left_exp = infix(self, left_exp)
@@ -844,7 +841,7 @@ class Environment:
 
     def get(self, name: str) -> Optional[Object]:
         obj = self.store.get(name, None)
-        if obj == None and self.outer != None:
+        if obj is None and self.outer is not None:
             return self.outer.get(name)
         return obj
 
@@ -1200,10 +1197,10 @@ def eval_ast(node: AstNode, env: Environment) -> Object:
 
 def eval_ast_identifier(node: AstIdentifier, env: Environment) -> Object:
     val: Optional[Object] = env.get(node.value)
-    if val != None:
+    if val is not None:
         return val
     val = BUILTINS.get(node.value)
-    if val != None:
+    if val is not None:
         return val
     return ObjectError(f"identifier not found: {node.value}")
 
@@ -1337,7 +1334,7 @@ def eval_ast_if_expression(node: AstIfExpression, env: Environment) -> Object:
         return condition
     if is_truthy(condition):
         return eval_ast(node.consequence, env)
-    elif node.alternative != None:
+    elif node.alternative is not None:
         return eval_ast(node.alternative, env)
     return ObjectNull()
 
@@ -1417,7 +1414,7 @@ def eval_source(
 
 
 def eval_file(
-    path: Union[str, os.PathLike], env: Optional[Environment] = None,
+    path: Union[str, os.PathLike], env: Optional[Environment] = None
 ) -> Object:
     with open(path, "r") as f:
         source = f.read()
