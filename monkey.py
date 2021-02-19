@@ -481,13 +481,13 @@ class AstIfExpression(AstExpression):
 class Precedence(enum.IntEnum):
     # fmt: off
     LOWEST      = enum.auto()
-    EQUALS      = enum.auto() # ==
-    LESSGREATER = enum.auto() # > or <
-    SUM         = enum.auto() # +
-    PRODUCT     = enum.auto() # *
-    PREFIX      = enum.auto() # -X or !X
-    CALL        = enum.auto() # myFunction(X)
-    INDEX       = enum.auto() # array[index]
+    EQUALS      = enum.auto()  # ==
+    LESSGREATER = enum.auto()  # > or <
+    SUM         = enum.auto()  # +
+    PRODUCT     = enum.auto()  # *
+    PREFIX      = enum.auto()  # -X or !X
+    CALL        = enum.auto()  # myFunction(X)
+    INDEX       = enum.auto()  # array[index]
     # fmt: on
 
 
