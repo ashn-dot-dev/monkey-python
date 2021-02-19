@@ -554,11 +554,15 @@ class EvalTest(unittest.TestCase):
 
     def check_integer(self, obj: monkey.Object, expected: int) -> None:
         self.assertIsInstance(obj, monkey.ObjectInteger)
-        self.assertEqual(typing.cast(monkey.ObjectInteger, obj).value, expected)
+        self.assertEqual(
+            typing.cast(monkey.ObjectInteger, obj).value, expected
+        )
 
     def check_boolean(self, obj: monkey.Object, expected: bool) -> None:
         self.assertIsInstance(obj, monkey.ObjectBoolean)
-        self.assertEqual(typing.cast(monkey.ObjectBoolean, obj).value, expected)
+        self.assertEqual(
+            typing.cast(monkey.ObjectBoolean, obj).value, expected
+        )
 
     def check_string(self, obj: monkey.Object, expected: str) -> None:
         self.assertIsInstance(obj, monkey.ObjectString)
@@ -812,7 +816,9 @@ class EvalTest(unittest.TestCase):
             TestData(
                 "first(1)", "argument to `first` must be ARRAY, got INTEGER"
             ),
-            TestData("first(1, 2)", "wrong number of arguments. got=2, want=1"),
+            TestData(
+                "first(1, 2)", "wrong number of arguments. got=2, want=1"
+            ),
             TestData("last([1, 2, 3])", 3),
             TestData("last([])", None),
             TestData(
@@ -881,7 +887,8 @@ class EvalTest(unittest.TestCase):
             TestData('"foo" - "bar"', "unknown operator: STRING - STRING"),
             TestData("foobar", "identifier not found: foobar"),
             TestData(
-                '{"name": "Monkey"}[fn(x){x}]', "unusable as hash key: FUNCTION"
+                '{"name": "Monkey"}[fn(x){x}]',
+                "unusable as hash key: FUNCTION",
             ),
         ]
         for test in tests:

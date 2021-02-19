@@ -547,7 +547,9 @@ class Parser:
             TokenKind.LPAREN, Parser._parse_grouped_expression
         )
         self._register_prefix(TokenKind.IF, Parser.parse_if_expression)
-        self._register_prefix(TokenKind.FUNCTION, Parser.parse_function_literal)
+        self._register_prefix(
+            TokenKind.FUNCTION, Parser.parse_function_literal
+        )
 
         self.infix_parse_fns: Dict[
             TokenKind, Parser.InfixParseFunction
@@ -555,13 +557,17 @@ class Parser:
         self._register_infix(TokenKind.PLUS, Parser._parse_infix_expression)
         self._register_infix(TokenKind.MINUS, Parser._parse_infix_expression)
         self._register_infix(TokenKind.SLASH, Parser._parse_infix_expression)
-        self._register_infix(TokenKind.ASTERISK, Parser._parse_infix_expression)
+        self._register_infix(
+            TokenKind.ASTERISK, Parser._parse_infix_expression
+        )
         self._register_infix(TokenKind.EQ, Parser._parse_infix_expression)
         self._register_infix(TokenKind.NOT_EQ, Parser._parse_infix_expression)
         self._register_infix(TokenKind.LT, Parser._parse_infix_expression)
         self._register_infix(TokenKind.GT, Parser._parse_infix_expression)
         self._register_infix(TokenKind.LPAREN, Parser._parse_call_expression)
-        self._register_infix(TokenKind.LBRACKET, Parser._parse_index_expression)
+        self._register_infix(
+            TokenKind.LBRACKET, Parser._parse_index_expression
+        )
 
         # Read two tokens, so curToken and peekToken are both set.
         self._next_token()
@@ -798,7 +804,9 @@ class Parser:
         self.prefix_parse_fns[token_kind] = prefix_parse_fn
 
     def _register_infix(
-        self, token_kind: TokenKind, infix_parse_fn: "Parser.InfixParseFunction"
+        self,
+        token_kind: TokenKind,
+        infix_parse_fn: "Parser.InfixParseFunction",
     ) -> None:
         self.infix_parse_fns[token_kind] = infix_parse_fn
 

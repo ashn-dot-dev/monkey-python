@@ -16,7 +16,7 @@ lint:
 	python3 -m flake8 *.py --ignore=E203,E221,E241,W503
 
 format:
-	python3 -m black *.py --line-length 80
+	python3 -m black *.py --line-length 79
 
 clean:
 	rm -rf __pycache__/
