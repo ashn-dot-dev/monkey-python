@@ -1130,81 +1130,6 @@ class ObjectError(Object):
         return "ERROR"
 
 
-def eval_ast(node: AstNode, env: Environment) -> Object:
-    if isinstance(node, AstProgram):
-        return _eval_ast_program(node, env)
-    if isinstance(node, AstBlockStatement):
-        return _eval_ast_block_statement(node, env)
-    if isinstance(node, AstLetStatement):
-        val = eval_ast(node.value, env)
-        if isinstance(val, ObjectError):
-            return val
-        env.set(node.name.value, val)
-        # Note: The book's implementation of Eval does not return a value here
-        # and instead returns nil at the end of the evaluator.Eval function.
-        # This interpreter chooses to make the result of a let statement a null
-        # object.
-        return ObjectNull()
-    if isinstance(node, AstReturnStatement):
-        ret = eval_ast(node.return_value, env)
-        if isinstance(ret, ObjectError):
-            return ret
-        return ObjectReturnValue(ret)
-    if isinstance(node, AstIdentifier):
-        return _eval_ast_identifier(node, env)
-    if isinstance(node, AstExpressionStatement):
-        return eval_ast(node.expression, env)
-    if isinstance(node, AstIntegerLiteral):
-        return ObjectInteger(node.value)
-    if isinstance(node, AstBooleanLiteral):
-        return ObjectBoolean(node.value)
-    if isinstance(node, AstStringLiteral):
-        return ObjectString(node.value)
-    if isinstance(node, AstArrayLiteral):
-        elements = _eval_ast_expressions(node.elements, env)
-        if isinstance(elements, ObjectError):
-            return elements
-        return ObjectArray(elements)
-    if isinstance(node, AstHashLiteral):
-        return _eval_ast_hash_literal(node, env)
-    if isinstance(node, AstFunctionLiteral):
-        params = node.parameters
-        body = node.body
-        return ObjectFunction(params, body, env)
-    if isinstance(node, AstPrefixExpression):
-        rhs = eval_ast(node.right, env)
-        if isinstance(rhs, ObjectError):
-            return rhs
-        return _eval_ast_prefix_expression(node.operator, rhs)
-    if isinstance(node, AstInfixExpression):
-        lhs = eval_ast(node.left, env)
-        if isinstance(lhs, ObjectError):
-            return lhs
-        rhs = eval_ast(node.right, env)
-        if isinstance(rhs, ObjectError):
-            return rhs
-        return _eval_ast_infix_expression(lhs, node.operator, rhs)
-    if isinstance(node, AstIndexExpression):
-        lhs = eval_ast(node.left, env)
-        if isinstance(lhs, ObjectError):
-            return lhs
-        index = eval_ast(node.index, env)
-        if isinstance(index, ObjectError):
-            return index
-        return _eval_index_expression(lhs, index)
-    if isinstance(node, AstCallExpression):
-        function = eval_ast(node.function, env)
-        if isinstance(function, ObjectError):
-            return function
-        args = _eval_ast_expressions(node.arguments, env)
-        if isinstance(args, ObjectError):
-            return args
-        return _apply_function(function, args)
-    if isinstance(node, AstIfExpression):
-        return _eval_ast_if_expression(node, env)
-    raise RuntimeError(f"Unhandled AST node {type(node)}")
-
-
 def _eval_ast_identifier(node: AstIdentifier, env: Environment) -> Object:
     val: Optional[Object] = env.get(node.value)
     if val is not None:
@@ -1410,6 +1335,81 @@ def _apply_function(fn: Object, args: List[Object]) -> Object:
     if isinstance(evaluated, ObjectReturnValue):
         return evaluated.value
     return evaluated
+
+
+def eval_ast(node: AstNode, env: Environment) -> Object:
+    if isinstance(node, AstProgram):
+        return _eval_ast_program(node, env)
+    if isinstance(node, AstBlockStatement):
+        return _eval_ast_block_statement(node, env)
+    if isinstance(node, AstLetStatement):
+        val = eval_ast(node.value, env)
+        if isinstance(val, ObjectError):
+            return val
+        env.set(node.name.value, val)
+        # Note: The book's implementation of Eval does not return a value here
+        # and instead returns nil at the end of the evaluator.Eval function.
+        # This interpreter chooses to make the result of a let statement a null
+        # object.
+        return ObjectNull()
+    if isinstance(node, AstReturnStatement):
+        ret = eval_ast(node.return_value, env)
+        if isinstance(ret, ObjectError):
+            return ret
+        return ObjectReturnValue(ret)
+    if isinstance(node, AstIdentifier):
+        return _eval_ast_identifier(node, env)
+    if isinstance(node, AstExpressionStatement):
+        return eval_ast(node.expression, env)
+    if isinstance(node, AstIntegerLiteral):
+        return ObjectInteger(node.value)
+    if isinstance(node, AstBooleanLiteral):
+        return ObjectBoolean(node.value)
+    if isinstance(node, AstStringLiteral):
+        return ObjectString(node.value)
+    if isinstance(node, AstArrayLiteral):
+        elements = _eval_ast_expressions(node.elements, env)
+        if isinstance(elements, ObjectError):
+            return elements
+        return ObjectArray(elements)
+    if isinstance(node, AstHashLiteral):
+        return _eval_ast_hash_literal(node, env)
+    if isinstance(node, AstFunctionLiteral):
+        params = node.parameters
+        body = node.body
+        return ObjectFunction(params, body, env)
+    if isinstance(node, AstPrefixExpression):
+        rhs = eval_ast(node.right, env)
+        if isinstance(rhs, ObjectError):
+            return rhs
+        return _eval_ast_prefix_expression(node.operator, rhs)
+    if isinstance(node, AstInfixExpression):
+        lhs = eval_ast(node.left, env)
+        if isinstance(lhs, ObjectError):
+            return lhs
+        rhs = eval_ast(node.right, env)
+        if isinstance(rhs, ObjectError):
+            return rhs
+        return _eval_ast_infix_expression(lhs, node.operator, rhs)
+    if isinstance(node, AstIndexExpression):
+        lhs = eval_ast(node.left, env)
+        if isinstance(lhs, ObjectError):
+            return lhs
+        index = eval_ast(node.index, env)
+        if isinstance(index, ObjectError):
+            return index
+        return _eval_index_expression(lhs, index)
+    if isinstance(node, AstCallExpression):
+        function = eval_ast(node.function, env)
+        if isinstance(function, ObjectError):
+            return function
+        args = _eval_ast_expressions(node.arguments, env)
+        if isinstance(args, ObjectError):
+            return args
+        return _apply_function(function, args)
+    if isinstance(node, AstIfExpression):
+        return _eval_ast_if_expression(node, env)
+    raise RuntimeError(f"Unhandled AST node {type(node)}")
 
 
 def eval_source(
