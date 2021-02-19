@@ -167,6 +167,12 @@ class AstTest(unittest.TestCase):
 
 
 class ParserTest(unittest.TestCase):
+    @staticmethod
+    def parse_program(source: str) -> monkey.AstProgram:
+        l = monkey.Lexer(source)
+        p = monkey.Parser(l)
+        return p.parse_program()
+
     def check_integer_literal(self, expr, value: int):
         self.assertIsInstance(expr, monkey.AstIntegerLiteral)
         self.assertEqual(expr.value, value)
@@ -221,9 +227,7 @@ class ParserTest(unittest.TestCase):
         statements = ["foobar;"]
 
         source = "\n".join(statements)
-        l = monkey.Lexer(source)
-        p = monkey.Parser(l)
-        program = p.parse_program()
+        program = self.parse_program(source)
         self.assertEqual(len(program.statements), len(statements))
 
         stmt = program.statements[0]
@@ -240,9 +244,7 @@ class ParserTest(unittest.TestCase):
         ]
 
         source = "\n".join(statements)
-        l = monkey.Lexer(source)
-        p = monkey.Parser(l)
-        program = p.parse_program()
+        program = self.parse_program(source)
         self.assertEqual(
             len(program.statements), len(statements), len(expected)
         )
@@ -265,9 +267,7 @@ class ParserTest(unittest.TestCase):
         ]
 
         source = "\n".join(statements)
-        l = monkey.Lexer(source)
-        p = monkey.Parser(l)
-        program = p.parse_program()
+        program = self.parse_program(source)
         self.assertEqual(len(program.statements), len(statements))
 
         for i in range(len(program.statements)):
@@ -278,9 +278,7 @@ class ParserTest(unittest.TestCase):
 
     def test_integer_literal(self):
         source = "5;"
-        l = monkey.Lexer(source)
-        p = monkey.Parser(l)
-        program = p.parse_program()
+        program = self.parse_program(source)
         self.assertEqual(len(program.statements), 1)
 
         stmt = program.statements[0]
@@ -289,9 +287,7 @@ class ParserTest(unittest.TestCase):
 
     def test_string_literal(self):
         source = '"hello world"'
-        l = monkey.Lexer(source)
-        p = monkey.Parser(l)
-        program = p.parse_program()
+        program = self.parse_program(source)
         self.assertEqual(len(program.statements), 1)
 
         stmt = program.statements[0]
@@ -300,9 +296,7 @@ class ParserTest(unittest.TestCase):
 
     def test_array_literal(self):
         source = "[1, 2 * 2, 3 + 3]"
-        l = monkey.Lexer(source)
-        p = monkey.Parser(l)
-        program = p.parse_program()
+        program = self.parse_program(source)
         self.assertEqual(len(program.statements), 1)
 
         stmt = program.statements[0]
@@ -316,9 +310,7 @@ class ParserTest(unittest.TestCase):
 
     def test_hash_literal_string_keys(self):
         source = '{"one": 1, "two": 2, "three": 3}'
-        l = monkey.Lexer(source)
-        p = monkey.Parser(l)
-        program = p.parse_program()
+        program = self.parse_program(source)
         self.assertEqual(len(program.statements), 1)
 
         stmt = program.statements[0]
@@ -336,9 +328,7 @@ class ParserTest(unittest.TestCase):
 
     def test_hash_literal_empty(self):
         source = "{}"
-        l = monkey.Lexer(source)
-        p = monkey.Parser(l)
-        program = p.parse_program()
+        program = self.parse_program(source)
         self.assertEqual(len(program.statements), 1)
 
         stmt = program.statements[0]
@@ -350,9 +340,7 @@ class ParserTest(unittest.TestCase):
 
     def test_function_literal(self):
         source = "fn(x, y) { x + y; }"
-        l = monkey.Lexer(source)
-        p = monkey.Parser(l)
-        program = p.parse_program()
+        program = self.parse_program(source)
         self.assertEqual(len(program.statements), 1)
 
         stmt = program.statements[0]
@@ -380,9 +368,7 @@ class ParserTest(unittest.TestCase):
         ]
 
         for test in tests:
-            l = monkey.Lexer(test.source)
-            p = monkey.Parser(l)
-            program = p.parse_program()
+            program = self.parse_program(test.source)
             self.assertEqual(len(program.statements), 1)
 
             stmt = program.statements[0]
@@ -407,9 +393,7 @@ class ParserTest(unittest.TestCase):
         ]
 
         for test in tests:
-            l = monkey.Lexer(test.source)
-            p = monkey.Parser(l)
-            program = p.parse_program()
+            program = self.parse_program(test.source)
             self.assertEqual(len(program.statements), 1)
 
             stmt = program.statements[0]
@@ -437,9 +421,7 @@ class ParserTest(unittest.TestCase):
         ]
 
         for test in tests:
-            l = monkey.Lexer(test.source)
-            p = monkey.Parser(l)
-            program = p.parse_program()
+            program = self.parse_program(test.source)
             self.assertEqual(len(program.statements), 1)
 
             stmt = program.statements[0]
@@ -500,16 +482,12 @@ class ParserTest(unittest.TestCase):
         ]
 
         for test in tests:
-            l = monkey.Lexer(test.source)
-            p = monkey.Parser(l)
-            program = p.parse_program()
+            program = self.parse_program(test.source)
             self.assertEqual(str(program), test.expected)
 
     def test_index_expression(self):
         source = "myarray[1 + 1]"
-        l = monkey.Lexer(source)
-        p = monkey.Parser(l)
-        program = p.parse_program()
+        program = self.parse_program(source)
         self.assertEqual(len(program.statements), 1)
 
         stmt = program.statements[0]
@@ -522,9 +500,7 @@ class ParserTest(unittest.TestCase):
 
     def test_call_expression(self):
         source = "add(1, 2 * 3, 4 + 5)"
-        l = monkey.Lexer(source)
-        p = monkey.Parser(l)
-        program = p.parse_program()
+        program = self.parse_program(source)
         self.assertEqual(len(program.statements), 1)
 
         stmt = program.statements[0]
@@ -541,9 +517,7 @@ class ParserTest(unittest.TestCase):
     def test_if_expression(self):
         statements = ["if (x < y) { x }", "if (x < y) { x } else { y }"]
         source = "\n".join(statements)
-        l = monkey.Lexer(source)
-        p = monkey.Parser(l)
-        program = p.parse_program()
+        program = self.parse_program(source)
         self.assertEqual(len(program.statements), len(statements))
 
         for stmt in program.statements:
@@ -568,10 +542,8 @@ class ParserTest(unittest.TestCase):
         TestData = collections.namedtuple("TestData", ["source", "expected"])
         tests = [TestData("fn(", "Expected token ), found EOF")]
         for test in tests:
-            l = monkey.Lexer(test.source)
-            p = monkey.Parser(l)
             try:
-                p.parse_program()
+                program = self.parse_program(test.source)
             except monkey.ParseError as e:
                 self.assertEqual(str(e), test.expected)
 
