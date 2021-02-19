@@ -1421,25 +1421,19 @@ def eval_file(
     return eval_source(source, env, SourceLocation(str(path), 1))
 
 
-class REPL:
-    def __init__(self):
-        pass
-
-    def run(self) -> None:
-        env: Environment = Environment()
-        while True:
-            try:
-                self._step(env)
-            except (EOFError, KeyboardInterrupt):
-                print("", end="\n")
-                return
-
-    def _step(self, env: Environment) -> None:
-        line = input(">> ")
+def repl(env: Optional[Environment] = None) -> None:
+    if env is None:
+        env = Environment()
+    while True:
         try:
+            # self._step(env)
+            line = input(">> ")
             print(eval_source(line, env))
         except ParseError as e:
-            print(e)
+            print(e, file=sys.stderr)
+        except (EOFError, KeyboardInterrupt):
+            print("", end="\n")
+            return
 
 
 def main():
@@ -1454,7 +1448,7 @@ def main():
         except ParseError as e:
             print(e, file=sys.stderr)
     else:
-        REPL().run()
+        repl()
 
 
 if __name__ == "__main__":
