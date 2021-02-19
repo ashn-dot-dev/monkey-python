@@ -496,8 +496,8 @@ class Parser:
     # > token types. Whenever this token type is encountered, the parsing
     # > functions are called to parse the appropriate expression and return an
     # > AST node that represents it. Each token type can have up to two parsing
-    # > functions associated with it, depending on whether the token is found in
-    # > a prefix or an infix position.
+    # > functions associated with it, depending on whether the token is found
+    # > in a prefix or an infix position.
     # >     - Writing and Interpreter in Go, ver 1.7, pg. 67.
     #
     # PrefixParseFunction : func()              -> AstExpression

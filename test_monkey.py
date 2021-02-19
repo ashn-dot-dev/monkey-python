@@ -149,9 +149,9 @@ class LexerTest(unittest.TestCase):
             TestData(monkey.TokenKind.EOF, ""),
         ]
 
-        l = monkey.Lexer(source)
+        lexer = monkey.Lexer(source)
         for exp in expected:
-            tok = l.next_token()
+            tok = lexer.next_token()
             self.assertEqual(tok.kind, exp.kind, tok.source_location)
             self.assertEqual(tok.literal, exp.literal, tok.source_location)
 
@@ -160,18 +160,18 @@ class AstTest(unittest.TestCase):
     def test_str(self):
         source = "let myvar = anothervar;"
 
-        l = monkey.Lexer(source)
-        p = monkey.Parser(l)
-        program = p.parse_program()
+        lexer = monkey.Lexer(source)
+        parser = monkey.Parser(lexer)
+        program = parser.parse_program()
         self.assertEqual(str(program), source)
 
 
 class ParserTest(unittest.TestCase):
     @staticmethod
     def parse_program(source: str) -> monkey.AstProgram:
-        l = monkey.Lexer(source)
-        p = monkey.Parser(l)
-        return p.parse_program()
+        lexer = monkey.Lexer(source)
+        parser = monkey.Parser(lexer)
+        return parser.parse_program()
 
     def check_integer_literal(self, expr, value: int):
         self.assertIsInstance(expr, monkey.AstIntegerLiteral)
@@ -532,7 +532,7 @@ class ParserTest(unittest.TestCase):
                 expr.consequence.statements[0].expression, "x"
             )
 
-            if expr.alternative != None:
+            if expr.alternative is not None:
                 self.assertEqual(len(expr.alternative.statements), 1)
                 self.check_identifier(
                     expr.alternative.statements[0].expression, "y"
@@ -543,7 +543,7 @@ class ParserTest(unittest.TestCase):
         tests = [TestData("fn(", "Expected token ), found EOF")]
         for test in tests:
             try:
-                program = self.parse_program(test.source)
+                self.parse_program(test.source)
             except monkey.ParseError as e:
                 self.assertEqual(str(e), test.expected)
 
@@ -568,8 +568,8 @@ class EvalTest(unittest.TestCase):
         self.assertIsInstance(obj, monkey.ObjectString)
         self.assertEqual(typing.cast(monkey.ObjectString, obj).value, expected)
 
-    # TODO: Maybe name this better since ObjectReturnValue is a type which might
-    # get confused with 'result'.
+    # TODO: Maybe name this better since ObjectReturnValue is a type which
+    # might get confused with 'result'.
     def check_result(
         self, obj: monkey.Object, expected: typing.Union[None, int, bool]
     ) -> None:
@@ -742,7 +742,10 @@ class EvalTest(unittest.TestCase):
             TestData("[1, 2, 3][1 + 1];", 3),
             TestData("let myarray = [1, 2, 3]; myarray[2];", 3),
             TestData(
-                "let myarray = [1, 2, 3]; myarray[0] + myarray[1] + myarray[2];",
+                (
+                    "let myarray = [1, 2, 3];\n"
+                    "myarray[0] + myarray[1] + myarray[2];"
+                ),
                 6,
             ),
             TestData(
