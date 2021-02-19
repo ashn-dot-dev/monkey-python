@@ -13,7 +13,7 @@ class SourceLocation:
         self.line: int = line
 
     def __repr__(self) -> str:
-        if self.filename == None:
+        if self.filename is None:
             return f"line {self.line}"
         return f"{self.filename}, line {self.line}"
 
@@ -241,7 +241,7 @@ class ParseError(Exception):
         self.why = why
 
     def __str__(self) -> str:
-        if self.tok.source_location == None:
+        if self.tok.source_location is None:
             return f"{self.why}"
         return f"[{self.tok.source_location}] {self.why}"
 
@@ -1448,7 +1448,7 @@ def main():
     parser.add_argument("file", type=str, nargs="?", default=None)
     args = parser.parse_args()
 
-    if args.file != None:
+    if args.file is not None:
         try:
             eval_file(args.file)
         except ParseError as e:
