@@ -435,7 +435,7 @@ class AstIndexExpression(AstExpression):
     def __init__(
         self, token: Token, left: AstExpression, index: AstExpression
     ) -> None:
-        self.token: Token = token  # The '[' token
+        self.token: Token = token  # The "[" token
         self.left: AstExpression = left
         self.index: AstExpression = index
 
