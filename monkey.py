@@ -1132,9 +1132,9 @@ class ObjectError(Object):
 
 def eval_ast(node: AstNode, env: Environment) -> Object:
     if isinstance(node, AstProgram):
-        return eval_ast_program(node, env)
+        return _eval_ast_program(node, env)
     if isinstance(node, AstBlockStatement):
-        return eval_ast_block_statement(node, env)
+        return _eval_ast_block_statement(node, env)
     if isinstance(node, AstLetStatement):
         val = eval_ast(node.value, env)
         if isinstance(val, ObjectError):
@@ -1151,7 +1151,7 @@ def eval_ast(node: AstNode, env: Environment) -> Object:
             return ret
         return ObjectReturnValue(ret)
     if isinstance(node, AstIdentifier):
-        return eval_ast_identifier(node, env)
+        return _eval_ast_identifier(node, env)
     if isinstance(node, AstExpressionStatement):
         return eval_ast(node.expression, env)
     if isinstance(node, AstIntegerLiteral):
@@ -1161,12 +1161,12 @@ def eval_ast(node: AstNode, env: Environment) -> Object:
     if isinstance(node, AstStringLiteral):
         return ObjectString(node.value)
     if isinstance(node, AstArrayLiteral):
-        elements = eval_ast_expressions(node.elements, env)
+        elements = _eval_ast_expressions(node.elements, env)
         if isinstance(elements, ObjectError):
             return elements
         return ObjectArray(elements)
     if isinstance(node, AstHashLiteral):
-        return eval_ast_hash_literal(node, env)
+        return _eval_ast_hash_literal(node, env)
     if isinstance(node, AstFunctionLiteral):
         params = node.parameters
         body = node.body
@@ -1175,7 +1175,7 @@ def eval_ast(node: AstNode, env: Environment) -> Object:
         rhs = eval_ast(node.right, env)
         if isinstance(rhs, ObjectError):
             return rhs
-        return eval_ast_prefix_expression(node.operator, rhs)
+        return _eval_ast_prefix_expression(node.operator, rhs)
     if isinstance(node, AstInfixExpression):
         lhs = eval_ast(node.left, env)
         if isinstance(lhs, ObjectError):
@@ -1183,7 +1183,7 @@ def eval_ast(node: AstNode, env: Environment) -> Object:
         rhs = eval_ast(node.right, env)
         if isinstance(rhs, ObjectError):
             return rhs
-        return eval_ast_infix_expression(lhs, node.operator, rhs)
+        return _eval_ast_infix_expression(lhs, node.operator, rhs)
     if isinstance(node, AstIndexExpression):
         lhs = eval_ast(node.left, env)
         if isinstance(lhs, ObjectError):
@@ -1191,21 +1191,21 @@ def eval_ast(node: AstNode, env: Environment) -> Object:
         index = eval_ast(node.index, env)
         if isinstance(index, ObjectError):
             return index
-        return eval_index_expression(lhs, index)
+        return _eval_index_expression(lhs, index)
     if isinstance(node, AstCallExpression):
         function = eval_ast(node.function, env)
         if isinstance(function, ObjectError):
             return function
-        args = eval_ast_expressions(node.arguments, env)
+        args = _eval_ast_expressions(node.arguments, env)
         if isinstance(args, ObjectError):
             return args
-        return apply_function(function, args)
+        return _apply_function(function, args)
     if isinstance(node, AstIfExpression):
-        return eval_ast_if_expression(node, env)
+        return _eval_ast_if_expression(node, env)
     raise RuntimeError(f"Unhandled AST node {type(node)}")
 
 
-def eval_ast_identifier(node: AstIdentifier, env: Environment) -> Object:
+def _eval_ast_identifier(node: AstIdentifier, env: Environment) -> Object:
     val: Optional[Object] = env.get(node.value)
     if val is not None:
         return val
@@ -1215,7 +1215,7 @@ def eval_ast_identifier(node: AstIdentifier, env: Environment) -> Object:
     return ObjectError(f"identifier not found: {node.value}")
 
 
-def eval_ast_program(node: AstProgram, env: Environment) -> Object:
+def _eval_ast_program(node: AstProgram, env: Environment) -> Object:
     result: Object = ObjectNull()
     for statement in node.statements:
         result = eval_ast(statement, env)
@@ -1226,7 +1226,7 @@ def eval_ast_program(node: AstProgram, env: Environment) -> Object:
     return result
 
 
-def eval_ast_block_statement(
+def _eval_ast_block_statement(
     node: AstBlockStatement, env: Environment
 ) -> Object:
     result: Object = ObjectNull()
@@ -1239,7 +1239,7 @@ def eval_ast_block_statement(
     return result
 
 
-def eval_ast_hash_literal(node: AstHashLiteral, env: Environment) -> Object:
+def _eval_ast_hash_literal(node: AstHashLiteral, env: Environment) -> Object:
     pairs: Dict[Object, Object] = dict()
     for key_node in node.pairs:
         key_obj = eval_ast(key_node, env)
@@ -1256,7 +1256,7 @@ def eval_ast_hash_literal(node: AstHashLiteral, env: Environment) -> Object:
     return ObjectHash(pairs)
 
 
-def eval_ast_prefix_expression(operator: str, rhs: Object) -> Object:
+def _eval_ast_prefix_expression(operator: str, rhs: Object) -> Object:
     def eval_ast_prefix_bang(rhs: Object) -> Object:
         if isinstance(rhs, ObjectNull):
             return ObjectBoolean(True)
@@ -1276,7 +1276,7 @@ def eval_ast_prefix_expression(operator: str, rhs: Object) -> Object:
     return ObjectError(f"unknown operator: {operator}{rhs.type}")
 
 
-def eval_ast_infix_expression(
+def _eval_ast_infix_expression(
     lhs: Object, operator: str, rhs: Object
 ) -> Object:
     def eval_ast_integer_infix_expression(
@@ -1331,7 +1331,7 @@ def eval_ast_infix_expression(
     return ObjectError(f"type mismatch: {lhs.type} {operator} {rhs.type}")
 
 
-def eval_ast_if_expression(node: AstIfExpression, env: Environment) -> Object:
+def _eval_ast_if_expression(node: AstIfExpression, env: Environment) -> Object:
     def is_truthy(obj: Object) -> bool:
         if isinstance(obj, ObjectNull):
             return False
@@ -1349,7 +1349,7 @@ def eval_ast_if_expression(node: AstIfExpression, env: Environment) -> Object:
     return ObjectNull()
 
 
-def eval_ast_expressions(
+def _eval_ast_expressions(
     expressions: List[AstExpression], env: Environment
 ) -> Union[List[Object], ObjectError]:
     result: List[Object] = list()
@@ -1361,7 +1361,7 @@ def eval_ast_expressions(
     return result
 
 
-def eval_index_expression(obj: Object, index: Object) -> Object:
+def _eval_index_expression(obj: Object, index: Object) -> Object:
     def eval_index_expression_array(obj: Object, index: Object) -> Object:
         assert isinstance(obj, ObjectArray)
         obj = cast(ObjectArray, obj)
@@ -1390,7 +1390,7 @@ def eval_index_expression(obj: Object, index: Object) -> Object:
     return ObjectError(f"index operator not supported: {obj.type}")
 
 
-def apply_function(fn: Object, args: List[Object]) -> Object:
+def _apply_function(fn: Object, args: List[Object]) -> Object:
     def extend_env(fn: ObjectFunction, args: List[Object]) -> Environment:
         env = Environment(fn.env)
         for i in range(len(fn.parameters)):
