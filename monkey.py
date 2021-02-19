@@ -541,25 +541,27 @@ class Parser:
         self._register_prefix(TokenKind.STRING, Parser.parse_string_literal)
         self._register_prefix(TokenKind.LBRACKET, Parser.parse_array_literal)
         self._register_prefix(TokenKind.LBRACE, Parser.parse_hash_literal)
-        self._register_prefix(TokenKind.BANG, Parser.parse_prefix_expression)
-        self._register_prefix(TokenKind.MINUS, Parser.parse_prefix_expression)
-        self._register_prefix(TokenKind.LPAREN, Parser.parse_grouped_expression)
+        self._register_prefix(TokenKind.BANG, Parser._parse_prefix_expression)
+        self._register_prefix(TokenKind.MINUS, Parser._parse_prefix_expression)
+        self._register_prefix(
+            TokenKind.LPAREN, Parser._parse_grouped_expression
+        )
         self._register_prefix(TokenKind.IF, Parser.parse_if_expression)
         self._register_prefix(TokenKind.FUNCTION, Parser.parse_function_literal)
 
         self.infix_parse_fns: Dict[
             TokenKind, Parser.InfixParseFunction
         ] = dict()
-        self._register_infix(TokenKind.PLUS, Parser.parse_infix_expression)
-        self._register_infix(TokenKind.MINUS, Parser.parse_infix_expression)
-        self._register_infix(TokenKind.SLASH, Parser.parse_infix_expression)
-        self._register_infix(TokenKind.ASTERISK, Parser.parse_infix_expression)
-        self._register_infix(TokenKind.EQ, Parser.parse_infix_expression)
-        self._register_infix(TokenKind.NOT_EQ, Parser.parse_infix_expression)
-        self._register_infix(TokenKind.LT, Parser.parse_infix_expression)
-        self._register_infix(TokenKind.GT, Parser.parse_infix_expression)
-        self._register_infix(TokenKind.LPAREN, Parser.parse_call_expression)
-        self._register_infix(TokenKind.LBRACKET, Parser.parse_index_expression)
+        self._register_infix(TokenKind.PLUS, Parser._parse_infix_expression)
+        self._register_infix(TokenKind.MINUS, Parser._parse_infix_expression)
+        self._register_infix(TokenKind.SLASH, Parser._parse_infix_expression)
+        self._register_infix(TokenKind.ASTERISK, Parser._parse_infix_expression)
+        self._register_infix(TokenKind.EQ, Parser._parse_infix_expression)
+        self._register_infix(TokenKind.NOT_EQ, Parser._parse_infix_expression)
+        self._register_infix(TokenKind.LT, Parser._parse_infix_expression)
+        self._register_infix(TokenKind.GT, Parser._parse_infix_expression)
+        self._register_infix(TokenKind.LPAREN, Parser._parse_call_expression)
+        self._register_infix(TokenKind.LBRACKET, Parser._parse_index_expression)
 
         # Read two tokens, so curToken and peekToken are both set.
         self._next_token()
@@ -660,7 +662,7 @@ class Parser:
     def parse_array_literal(self) -> AstArrayLiteral:
         assert self.cur_token.kind == TokenKind.LBRACKET
         token = self.cur_token
-        elements = self.parse_expression_list(TokenKind.RBRACKET)
+        elements = self._parse_expression_list(TokenKind.RBRACKET)
         return AstArrayLiteral(token, elements)
 
     def parse_hash_literal(self) -> AstHashLiteral:
@@ -685,12 +687,12 @@ class Parser:
     def parse_function_literal(self) -> AstFunctionLiteral:
         token = self.cur_token
         self._expect_peek(TokenKind.LPAREN)
-        parameters = self.parse_function_parameters()
+        parameters = self._parse_function_parameters()
         self._expect_peek(TokenKind.LBRACE)
         body = self.parse_block_statement()
         return AstFunctionLiteral(token, parameters, body)
 
-    def parse_function_parameters(self) -> List[AstIdentifier]:
+    def _parse_function_parameters(self) -> List[AstIdentifier]:
         identifiers: List[AstIdentifier] = list()
         if self._peek_token_is(TokenKind.RPAREN):
             self._next_token()
@@ -709,7 +711,7 @@ class Parser:
         self._expect_peek(TokenKind.RPAREN)
         return identifiers
 
-    def parse_prefix_expression(self) -> AstPrefixExpression:
+    def _parse_prefix_expression(self) -> AstPrefixExpression:
         token = self.cur_token
         operator = self.cur_token.literal
 
@@ -719,7 +721,9 @@ class Parser:
         right = self.parse_expression(Precedence.PREFIX)
         return AstPrefixExpression(token, operator, right)
 
-    def parse_infix_expression(self, left: AstExpression) -> AstInfixExpression:
+    def _parse_infix_expression(
+        self, left: AstExpression
+    ) -> AstInfixExpression:
         token = self.cur_token
         operator = self.cur_token.literal
 
@@ -729,27 +733,33 @@ class Parser:
 
         return AstInfixExpression(token, left, operator, right)
 
-    def parse_grouped_expression(self) -> AstExpression:
+    def _parse_grouped_expression(self) -> AstExpression:
+        assert self.cur_token.kind == TokenKind.LPAREN
         self._next_token()
         exp = self.parse_expression(Precedence.LOWEST)
         self._expect_peek(TokenKind.RPAREN)
         return exp
 
-    def parse_index_expression(self, left: AstExpression) -> AstIndexExpression:
+    def _parse_index_expression(
+        self, left: AstExpression
+    ) -> AstIndexExpression:
+        assert self.cur_token.kind == TokenKind.LBRACKET
         token = self.cur_token
         self._next_token()
         index = self.parse_expression(Precedence.LOWEST)
         self._expect_peek(TokenKind.RBRACKET)
         return AstIndexExpression(token, left, index)
 
-    def parse_call_expression(
+    def _parse_call_expression(
         self, function: AstExpression
     ) -> AstCallExpression:
+        assert self.cur_token.kind == TokenKind.LPAREN
         token = self.cur_token
-        arguments = self.parse_expression_list(TokenKind.RPAREN)
+        token = self.cur_token
+        arguments = self._parse_expression_list(TokenKind.RPAREN)
         return AstCallExpression(token, function, arguments)
 
-    def parse_expression_list(self, end: TokenKind) -> List[AstExpression]:
+    def _parse_expression_list(self, end: TokenKind) -> List[AstExpression]:
         args: List[AstExpression] = []
         if self._peek_token_is(end):
             self._next_token()
