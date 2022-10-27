@@ -106,9 +106,8 @@ class Lexer:
         self, source: str, initial_location: Optional[SourceLocation] = None
     ) -> None:
         self.source: str = source
-        # vvv What position does the source "start" being parsed from.
-        #     None if the source is being lexed in a location-independent
-        #     manner.
+        # What position does the source "start" being parsed from.
+        # None if the source is being lexed in a location-independent manner.
         self.location: Optional[SourceLocation] = initial_location
         self.position: int = 0
         self.read_position: int = 0
@@ -116,6 +115,12 @@ class Lexer:
         self._read_char()
 
     def next_token(self) -> Token:
+        # Create a new copy of the lexer's source location so that each token
+        # has a unique own source location object (i.e. separate reference).
+        if self.location is not None:
+            self.location = SourceLocation(
+                self.location.filename, self.location.line
+            )
         self._skip_whitespace()
 
         if self.ch == "=":
