@@ -1449,7 +1449,6 @@ def repl(env: Optional[Environment] = None) -> None:
         env = Environment()
     while True:
         try:
-            # self._step(env)
             line = input(">> ")
             print(eval_source(line, env))
         except ParseError as e:
